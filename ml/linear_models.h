@@ -43,7 +43,7 @@ private:
 			throw BadShape("wrong shape in add_ones");
 		}
 
-		data.push_back(vector<double>(N, 1.0));
+		data.push_back(std::vector<double>(N, 1.0));
 		return data;
 	}
 

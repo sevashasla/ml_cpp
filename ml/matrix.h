@@ -78,6 +78,10 @@ public:
 		return res;
 	}
 
+	void push_back(const std::vector<double>& v){
+		matrix.push_back(v);
+	}
+
 
 	Matrix(size_t m, size_t n, const Field& f): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, f)){}
 	Matrix(const Matrix&) = default;
@@ -305,7 +309,7 @@ auto operator==(const Matrix<Field>& left, const Matrix<Field>& right){
 	Matrix<Field> res(left.num_rows(), left.num_columns(), 0);
 	for(size_t i = 0; i < left.num_rows(); ++i){
 		for(size_t j = 0; j < left.num_columns(); ++j){
-			res[i][j] = (left[i][j] == right[i][j]);
+			res[i][j] = equal(left[i][j], right[i][j]);
 		}
 	}
 	return res;
@@ -320,7 +324,7 @@ auto operator!=(const Matrix<Field>& left, const Matrix<Field>& right){
 	Matrix<Field> res(left.num_rows(), left.num_columns(), 0);
 	for(size_t i = 0; i < left.num_rows(); ++i){
 		for(size_t j = 0; j < left.num_columns(); ++j){
-			res[i][j] = (left[i][j] != right[i][j]);
+			res[i][j] = !equal(left[i][j], right[i][j]);
 		}
 	}
 	return res;
