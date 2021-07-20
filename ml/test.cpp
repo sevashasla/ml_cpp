@@ -1,6 +1,6 @@
-#include "linear_models.h"
-#include<iostream>
-#include<list>
+#include <iostream>
+#include <vector>
+#include <list>
 
 using std::cin, std::cout, std::vector;
 
@@ -19,6 +19,7 @@ void wt() = delete;
 
 
 int main(){
+	std::vector<int&> a;
 
 
 	return 0;

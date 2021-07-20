@@ -7,8 +7,8 @@
 
 
 struct BadShape: public std::exception{
-	char* ptr=nullptr;
-	BadShape(const char* ptr){}
+	const char* ptr=nullptr;
+	BadShape(const char* ptr): ptr(ptr){}
 
 	BadShape(const BadShape&) = default;
 	BadShape(BadShape&&) = default;
