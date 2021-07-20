@@ -11,6 +11,13 @@ namespace nn{
 		virtual ~Layer(){}
 	};
 
+	class Loss{
+	public:
+		virtual Matrix<double> forward(const Matrix<double>&, const Matrix<double>&) = 0;
+		virtual Matrix<double> backward(const Matrix<double>&) = 0;
+		virtual ~Loss(){}
+	}
+
 	
 	template<size_t N>
 	class ReLU: Layer{
@@ -19,6 +26,7 @@ namespace nn{
 	public:
 		
 		auto forward(const Matrix<double>& x) {
+
 
 		}
 
@@ -29,11 +37,46 @@ namespace nn{
 	};
 
 	
-	class MSELoss: Layer{
+	class MSELoss: Loss{
+	/*	
+		y: N x C
+		pred: N x C
+		let's look at only one
+		y: 1 x C = (y_1, ... , y_C)
+		pred: 1 x C = (y_pred_1, ... , y_pred_C)
+
+		f = (y_1 - y_pred_1) ^ 2 + ... + (y_C - y_pred_C) ^ 2
+		df/dy_pred_i = 2 * (y_pred_i - y_i)
+		grad_y_pred = 2 * (pred - y)
+	*/
 
 	private:
 		Matrix<double> grad;
+		Matrix<double>* pred_ptr;
+		const Matrix<double>* y_ptr;
+
+
 	public:
+		auto forward(const Matrix<double>& y, Matrix<double> pred){
+			pred_ptr = &pred;//Will it be good?
+			y_ptr = &y;
+
+			if(y.size() != pred.size()){
+				throw BadShape("y and pred don't have equal sizes in MSELoss");
+			}
+			double res = 0.0;
+			for(size_t i = 0; i < y.num_rows(); ++i){
+				for(size_t j = 0; j < y.num_columns(); ++j){
+					res += std::pow(y[i][j] - pred[i][j], 2);
+				}
+			}
+			return res;
+		}
+
+		auto backward(){
+			grad += 2 * (*pred_ptr - *y_ptr);
+			pred_ptr->backward(grad);
+		}
 
 	};
 
@@ -63,14 +106,10 @@ namespace nn{
 		grad_w = 						...						= 	...	 * 	(df(y)/dy_1, ... , df(y)/dy_C) = x^T * grad_y
 					(df(y)/dy_1 * x_M , ... , df(y)/dy_C * x_M)		(x_M)
 
-
-
-
-
 	*/
 	private:
 		Matrix<double> result;
-		Matrix<double> grad;
+		Matrix<double> grad(In + 1, Out, 0.0);
 		Matrix<double> w;
 
 	public:
@@ -83,12 +122,14 @@ namespace nn{
 			result = x * w;
 			return result;
 		}
-
 		
 		Matrix<double> backward(const Matrix<double>& other_grad) override{
-			grad = result.transpose() * other_grad;
-			grad /= result.num_rows();
+			grad += result.transpose() * other_grad;
 			return grad;
+		}
+
+		void zero_grad(){
+			graz.make_zero();
 		}
 
 		void make_step(double step){
@@ -102,7 +143,7 @@ namespace nn{
 	template<typename... Layers>
 	class Sequantial{
 	private:
-		std::list<Layer*> seq;
+		std::list<std::unique_ptr<Layer>> seq;
 
 		auto add_ones(const Matrix<double>& x_fresh) const{
 			Matrix<double> res(x_fresh);
@@ -136,9 +177,11 @@ namespace nn{
 			return x;
 		}
 
-		void backward(){
-
+		void backward(Matrix<double>& grad_other){
+			seq.back()->backward(grad_other);
 		}
+
+		~Sequantial(){}
 	};
 
 }
@@ -147,11 +190,7 @@ namespace nn{
 
 int main(){
 	nn::Sequantial<nn::Linear<1, 2>> net;
-	try{
-		net.forward(Matrix<double>(5, 1));
-	} catch(BadShape& x){
-
-	}
+	
 
 	return 0;
 }

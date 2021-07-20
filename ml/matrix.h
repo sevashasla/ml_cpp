@@ -182,12 +182,12 @@ public:
 		return *this;
 	}
 
-	Field& tr() const{
-		Field res = 0;
-		for(size_t i = 0; i < std::min(__m, __n); ++i){
-			res += matrix[i][i];
+	void make_zero() {
+		for(size_t i = 0; i < __m; ++i){
+			for(size_t j = 0; j < __n; ++j){
+				matrix[i][j] = 0.0;
+			}
 		}
-		return res;
 	}
 
 	Matrix<Field> transpose() const{
