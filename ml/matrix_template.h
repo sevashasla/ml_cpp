@@ -1,8 +1,10 @@
+#pragma once
+
 #include <iostream>
 #include <type_traits>
 #include <algorithm>
 #include <cmath>
-#include <initializer_list>
+
 
 template<size_t M, size_t N, typename Field=double>
 class Matrix{

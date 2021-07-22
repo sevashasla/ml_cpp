@@ -1,9 +1,10 @@
+#pragma once
+
 #include <iostream>
 #include <type_traits>
 #include <algorithm>
 #include <cmath>
-#include <initializer_list>
-
+#include <memory>
 
 
 struct BadShape: public std::exception{
@@ -20,6 +21,175 @@ struct BadShape: public std::exception{
 	}
 };
 
+struct HadLayer: public std::exception{
+	const char* ptr=nullptr;
+	HadLayer(const char* ptr): ptr(ptr){}
+
+	HadLayer(const HadLayer&) = default;
+	HadLayer(HadLayer&&) = default;
+	HadLayer& operator=(const HadLayer&) = default;
+	HadLayer& operator=(HadLayer&&) = default;
+
+	const char* what() const noexcept override{
+		return ptr;
+	}
+}
+
+
+class Layer{
+
+};
+
+class Multiplier: public Layer{
+/*
+	A: M x N
+	B: N x K
+	C: M x K = A * B
+	
+	C_i = (A_{i 1} * B{1 1} + ... + A_{i N} * B_{N 1}, ... , A_{i 1} * B{1 K} + ... + A_{i N} * B{N K})
+
+	df/dA_{1 1} = 1/K * (df/dC_{1 1} * B_{1 1} + ... + df/dC_{1 K} * B_{K 1})
+	df/dB_{1 1} = 1/M * (df/dC_{1 1} * A_{1 1} + ... + df/dC_{M 1} * A_{M 1})
+
+			(df/dC_{1 1}, ... , df/dC_{1 K})
+	grad_f = 				...
+			(df/dC_{M 1}, ... , df/dC_{M K})
+	
+	grad_A = 1/K * grad_f * B^T
+	grad_B = 1/M * A^T * grad_f
+*/
+
+private:
+	Matrix<double>* left_ptr;
+	Matrix<double>* right_ptr;
+	Matrix<double>* res_ptr;
+	Matrix<double>* grad_ptr;
+
+	Matrix<double> matmul(Matrix<double>& left, Matrix<double>& right){
+		size_t M = left.num_rows();
+		size_t N = left.num_columns();
+		size_t K = right.num_columns();
+
+		Matrix<Field> result(M, K, 0);
+		for(size_t i = 0; i < M; ++i){
+			for(size_t j = 0; j < K; ++j){
+				for(size_t k = 0; k < N; ++k){
+					result[i][j] += left[i][k] * right[k][j];
+				}
+			}
+		}
+		return result;
+	}
+
+public:
+	Multiplier(){
+		res_ptr = new Matrix<double>(0, 0);
+		res_ptr->layer = this;
+		grad_ptr = new Matrix<double>(0, 0);
+	}
+
+	Multiplier(const Multiplier& other): Multiplier(){
+		*res_ptr = *other.res_ptr;
+		res_ptr->layer = this;
+		*grad_ptr = *other.grad_ptr;
+		left = other.left;
+		right = other.left;
+	}
+
+	Multiplier(Multiplier&& other){
+		res_ptr = other.res_ptr
+		res_ptr->layer = this;
+		grad_ptr = other.grad_ptr
+
+		left = other.left;
+		right = other.right;
+	}
+
+	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right){
+		if(left.num_columns() != right.num_rows()){
+			delete res_ptr;
+			delete grad_ptr;
+			throw BadShape("sizes must be m x n * n x k. Multiplier, forward");
+		}
+	}
+
+
+	void backward(const Matrix<double>& grad_other){
+		*grad_ptr = grad_other;
+
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		left->backward(matmul(*grad_ptr, right_ptr->transpose()));
+		right->backward(matmul(left->transpose(), *grad_ptr));
+	}
+};
+
+
+class Adder: public Layer{
+/*
+	A + B = C
+	y = f(C)
+			(dy/dC_{1 1}, ... , dy/dC_{1 N})
+	grad_y = 			...
+			(dy/dC_{M 1}, ... , dy/dC_{M N})
+	
+
+			(dy/dA_{1 1}, ... , dy/dA_{1 N})	(dy/dC_{1 1}, ... , dy/dC_{1 N})
+	grad_A = 			...					=				...
+			(dy/dA_{M 1}, ... , dy/dA_{M N})	(dy/dC_{1 1}, ... , dy/dC_{1 N})
+				
+	similarly for grad_B
+*/
+private:
+	Matrix<double>* left_ptr;
+	Matrix<double>* right_ptr;
+	Matrix<double>* res_ptr;
+	Matrix<double>* grad_ptr;
+
+public:
+	Adder(){
+		res_ptr = new Matrix<double>(0, 0);
+		grad_ptr = new Matrix<double>(0, 0);
+	}
+
+	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right){
+		if(left.size() != right.size()){
+			delete res_ptr;
+			delete grad_ptr;
+
+			throw BadShape("left and right must have the same sizes. Adder, forward");
+		}
+
+		this->left_ptr = &left;
+		this->right_ptr = &right;
+
+		*res_ptr = left;
+		res_ptr->layer = this;
+
+		for(size_t i = 0; i < left.num_rows(); ++i){
+			for(size_t j = 0; j < left.num_columns(); ++j){
+				(*res_ptr)[i][j] += (left[i][j] + right[i][j]);
+			}
+		}
+
+		return *res_ptr;
+	}
+
+	void backward(const Matrix<double>& grad_other){
+		if(!grad_ptr){
+			grad_ptr = new Matrix<double>(res->num_rows(), res->num_columns(), 0.0);
+		}
+		*grad_ptr = grad_other;
+		left_ptr->backward(*grad_ptr);
+		right_ptr->backward(*grad_ptr);
+	}
+
+	~Adder(){
+		delete res_ptr;
+		delete grad_ptr;
+	}
+};
+
 
 template<typename Field=double>
 class Matrix{
@@ -28,13 +198,15 @@ class Matrix{
 
 	template<typename FField>
 	friend std::istream& operator>>(std::istream& out, Matrix<FField>& m);
-
+	friend Multiplier;
+	friend Adder;
 
 private:
 	size_t __m;
 	size_t __n;
 	Field epsilon = 1e-3;
 	std::vector<std::vector<Field>> matrix;
+	Layer* layer=nullptr;
 
 	// second = first * coeff + second
 	void add_str(size_t first, size_t second, Field coeff = 1){
@@ -57,19 +229,19 @@ private:
 public:
 	Matrix(): Matrix(0, 0){}
 
-	Matrix(size_t m, size_t n): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)){
+	Matrix(size_t m, size_t n, Layer* layer=nullptr): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)), layer(layer){
 		for(size_t i = 0; i < std::min(__m, __n); ++i){
 			matrix[i][i] = 1;
 		}
 	}
 
 
-	static Matrix<Field> eye(size_t m, size_t n){
-		return Matrix<Field>(m, n);
+	static Matrix<Field> eye(size_t m, size_t n, Layer* layer=nullptr){
+		return Matrix<Field>(m, n, layer);
 	}
 
-	static Matrix<Field> random(size_t m, size_t n){
-		Matrix<Field> res(m, n, 0);
+	static Matrix<Field> random(size_t m, size_t n, Layer* layer=nullptr){
+		Matrix<Field> res(m, n, 0, nullptr);
 		for(size_t i = 0; i < m; ++i){
 			for(size_t j = 0; j < n; ++j){
 				res[i][j] = static_cast<Field>(rand()) / static_cast<Field>(RAND_MAX);
@@ -83,28 +255,36 @@ public:
 	}
 
 
-	Matrix(size_t m, size_t n, const Field& f): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, f)){}
+	Matrix(size_t m, size_t n, const Field& f, Layer* layer=nullptr): __m(m), __n(n), 
+	matrix(__m, std::vector<Field>(__n, f)), layer(layer){}
+	
 	Matrix(const Matrix&) = default;
 	Matrix(Matrix&&) = default;
 	
-	Matrix(const std::vector<std::vector<Field>>& matrix_other): __m(matrix_other.size()),
-																 __n(matrix_other[0].size()), 
-																 matrix(matrix_other){}
-	Matrix(std::vector<std::vector<Field>>&& matrix_other): __m(matrix_other.size()),
-															__n(matrix_other[0].size()), 
-															matrix(std::move(matrix_other)){}
+	Matrix(const std::vector<std::vector<Field>>& matrix_other): __m(matrix_other.size()), 
+	__n(matrix_other[0].size()), matrix(matrix_other){}
+
+	Matrix(std::vector<std::vector<Field>>&& matrix_other): __m(matrix_other.size()), 
+	__n(matrix_other[0].size()), matrix(std::move(matrix_other)){}
 
 	Matrix& operator=(const Matrix& other) & {
 		__m = other.__m;
 		__n = other.__n;
 		matrix = other.matrix;
+		layer = other.layer;
 		return *this;
 	}
 
 	Matrix& operator=(Matrix&& other) & {
+		if(layer){
+			throw HadLayer("had layer, but operator= called");
+		}
 		__m = other.__m;
 		__n = other.__n;
 		matrix = std::move(other.matrix);
+		layer = other.layer;
+		other.__m = other.__n = 0;
+		other.layer = nullptr;
 		return *this;
 	}
 
@@ -135,6 +315,10 @@ public:
 	}
 
 	Matrix& operator*=(const Matrix<Field>& other){
+
+		if(layer){
+			throw HadLayer("had layer, but operator*= called");
+		}
 		
 		//m x n * n x k
 		if(__n != other.__m){
@@ -155,8 +339,11 @@ public:
 	}
 
 	Matrix& operator+=(const Matrix<Field>& other){
+		if(layer){
+			throw HadLayer("had layer, but operator+= called");
+		}
 
-		if(__n != other.__n || __m != other.__m){
+		if(size() != other.size()){
 			throw BadShape("One can't add (+=) matrices with such shapes");
 		}
 
@@ -169,8 +356,12 @@ public:
 	}
 
 	Matrix& operator-=(const Matrix<Field>& other){
+
+		if(layer){
+			throw HadLayer("had layer, but operator-= called");
+		}
 		
-		if(__n != other.__n || __m != other.__m){
+		if(size() != other.size()){
 			throw BadShape("One can't subtract (-=) matrices with such shapes");
 		}
 
@@ -191,6 +382,7 @@ public:
 	}
 
 	Matrix<Field> transpose() const{
+
 		Matrix<Field> transposed(__n, __m, 0);
 		for(size_t i = 0; i < __n; ++i){
 			for(size_t j = 0; j < __m; ++j){
@@ -231,8 +423,23 @@ public:
 		return __n;
 	}
 
-	~Matrix() = default;
 
+	template<typename FField>
+	explicit operator FField() const{
+		Matrix<FField> res(__m, __n, 0, layer);
+		for(size_t i = 0; i < __m; ++i){
+			for(size_t j = 0; j < __n; ++j){
+				res[i][j] = static_cast<FField>(matrix[i][j]);
+			}
+		}
+	}
+
+
+	void backward(){
+
+	}
+
+	~Matrix() = default;
 };
 
 template<typename Field>
