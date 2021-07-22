@@ -3,7 +3,7 @@
 
 using std::cin, std::cout;
 int main(){
-	Matrix<double> x(1, 1, 0.0);
+	Matrix<double> x(1, 1, 1.0);
 	
 
 	return 0;

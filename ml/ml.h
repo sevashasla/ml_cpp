@@ -6,6 +6,7 @@
 
 
 namespace nn{
+	//Do I need such class?
 	class nnLayer: public Layer{
 	public:
 		virtual Matrix<double> forward(const Matrix<double>&) = 0;
