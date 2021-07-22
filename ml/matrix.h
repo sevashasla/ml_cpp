@@ -6,7 +6,7 @@
 #include <cmath>
 #include <memory>
 
-
+using std::cout;
 struct BadShape: public std::exception{
 	const char* ptr=nullptr;
 	BadShape(const char* ptr): ptr(ptr){}
@@ -35,10 +35,8 @@ struct BadShape: public std::exception{
 // 	}
 // }
 
-class Layer;
 class Multiplier;
 class Adder;
-
 
 template<typename Field=double>
 class Matrix{
@@ -50,13 +48,22 @@ class Matrix{
 	friend Multiplier;
 	friend Adder;
 
+
+	class Layer{
+	public:
+		Matrix<double>* res_ptr;
+		virtual void backward(const Matrix<double>&) const = 0;
+		virtual Matrix<double>& forward(const Matrix<double>&, const Matrix<double>&) = 0;
+		virtual ~Layer() = default;
+	};
+
 private:
 	size_t __m;
 	size_t __n;
 	Field epsilon = 1e-3;
 	std::vector<std::vector<Field>> matrix;
 	Layer* layer=nullptr;
-	Matrix<Field>* grad_ptr=nullptr;
+	mutable Matrix<Field>* grad_ptr=nullptr;//not good
 
 	// second = first * coeff + second
 	void add_str(size_t first, size_t second, Field coeff = 1){
@@ -234,14 +241,6 @@ public:
 	}
 
 
-	Field eps() const{
-		return epsilon;
-	}
-
-	void eps(const Field& new_eps) {
-		epsilon = new_eps;
-	}
-
 	Field sum() const{
 		Field _sum = 0.0;
 		for(size_t i = 0; i < __m; ++i){
@@ -275,14 +274,17 @@ public:
 		}
 	}
 
-	void backward(const Matrix<Field>& other_grad){
+	void backward(const Matrix<Field>& grad_other) const{
 		if(!grad_ptr){
-			grad_ptr = new Matrix<double>(__m, __n, 0ul, nullptr);
+			grad_ptr = new Matrix<double>(grad_other);
+			layer->res_ptr = this;
 		}
-		layer->backward(other_grad);
-
-		delete layer;
-		layer = nullptr;
+		
+		if(layer){
+			layer->backward(grad_other);
+		}
+		//where will I delete layer???
+		//delete layer;
 	}
 
 	void zero_grad(){
@@ -299,15 +301,8 @@ public:
 };
 
 
-class Layer{
-public:
-	virtual void backward(const Matrix<double>&) = 0;
-	virtual Matrix<double>& forward(Matrix<double>&, Matrix<double>&) = 0;
-	virtual ~Layer() = default;
-};
-
-
-class Multiplier: public Layer{
+//May be template?
+class Multiplier: public Matrix<double>::Layer{
 /*
 	A: M x N
 	B: N x K
@@ -327,11 +322,11 @@ class Multiplier: public Layer{
 */
 
 private:
-	Matrix<double>* left_ptr;
-	Matrix<double>* right_ptr;
+	const Matrix<double>* left_ptr;
+	const Matrix<double>* right_ptr;
 	Matrix<double>* res_ptr;
 
-	Matrix<double> matmul(const Matrix<double>& left, const Matrix<double>& right){
+	Matrix<double> matmul(const Matrix<double>& left, const Matrix<double>& right) const{
 	/*
 		c[i][j] = sum_k_(a[i][k] * b[k][j]);
 		(M x N) * (N x K) -> (M x K)
@@ -341,7 +336,7 @@ private:
 		size_t N = left.num_columns();
 		size_t K = right.num_columns();
 
-		Matrix<double> result(M, K, 0, this);
+		Matrix<double> result(M, K, 0, nullptr);
 		for(size_t i = 0; i < M; ++i){
 			for(size_t j = 0; j < K; ++j){
 				for(size_t k = 0; k < N; ++k){
@@ -353,26 +348,16 @@ private:
 		return result;
 	}
 
-	void mulscalar_helper(double scalar, Matrix<double>& matrix) const{
-		for(size_t i = 0; i < matrix.num_rows(); ++i){
-			for(size_t j = 0; j < matrix.num_columns(); ++j){
-				matrix[i][j] *= scalar;
+
+	Matrix<double> mulscalar(double scalar, const Matrix<double>& matrix) const{
+		Matrix<double> result = matrix;
+		for(size_t i = 0; i < result.num_rows(); ++i){
+			for(size_t j = 0; j < result.num_columns(); ++j){
+				result[i][j] *= scalar;
 			}
 		}
-	}
-
-	Matrix<double> mulscalar(double scalar, const Matrix<double>& matrix){
-		Matrix<double> result = matrix;
-		mulscalar_helper(scalar, result);
 		return result;
 	}
-
-	Matrix<double> mulscalar(double scalar, Matrix<double>&& matrix){
-		Matrix<double> result = std::move(matrix);
-		mulscalar_helper(scalar, result);
-		return result;
-	}
-
 
 public:
 	Multiplier(){
@@ -394,21 +379,22 @@ public:
 		right_ptr = other.right_ptr;
 	}
 
-	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right) override{
+	Matrix<double>& forward(const Matrix<double>& left, const Matrix<double>& right) override{
 		if(left.num_columns() != right.num_rows()){
 			delete res_ptr;
 			throw BadShape("sizes must be m x n * n x k. Multiplier, forward");
 		}
 
 		*res_ptr = matmul(left, right);
+		res_ptr->layer = this;
 		return *res_ptr;
 	}
 
 
-	void backward(const Matrix<double>& grad_other) override{
+	void backward(const Matrix<double>& grad_other) const override{
 		*(res_ptr->grad_ptr) += grad_other;
 
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!grad_other or something other?
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!grad_other or something other?!!!!!!!!!!!!!!!
 		left_ptr->backward(mulscalar(1.0 / right_ptr->num_columns(), matmul(grad_other, right_ptr->transpose())));
 		right_ptr->backward(mulscalar(1.0 / left_ptr->num_rows(), matmul(left_ptr->transpose(), grad_other)));
 	}
@@ -419,7 +405,8 @@ public:
 };
 
 
-class Adder: public Layer{
+
+class Adder: public Matrix<double>::Layer{
 /*
 	A + B = C
 	y = f(C)
@@ -435,8 +422,8 @@ class Adder: public Layer{
 	similarly for grad_B
 */
 private:
-	Matrix<double>* left_ptr;
-	Matrix<double>* right_ptr;
+	const Matrix<double>* left_ptr;
+	const Matrix<double>* right_ptr;
 	Matrix<double>* res_ptr;
 	
 
@@ -445,7 +432,7 @@ public:
 		res_ptr = new Matrix<double>(0, 0);
 	}
 
-	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right) override{
+	Matrix<double>& forward(const Matrix<double>& left, const Matrix<double>& right) override{
 		if(left.size() != right.size()){
 			delete res_ptr;
 
@@ -467,7 +454,8 @@ public:
 		return *res_ptr;
 	}
 
-	void backward(const Matrix<double>& grad_other) override{
+	void backward(const Matrix<double>& grad_other) const override{
+		
 		*(res_ptr->grad_ptr) += grad_other;
 		left_ptr->backward(grad_other);
 		right_ptr->backward(grad_other);
@@ -484,7 +472,7 @@ template<typename Field>
 Matrix<Field> operator*(const Matrix<Field>& left, const Matrix<Field>& right){
 	//SHARED PTR MAYBE?
 	Multiplier* multiplier_ptr = new Multiplier;
-	return (*multiplier_ptr)(left, right);
+	return multiplier_ptr->forward(left, right);
 }
 
 
@@ -512,9 +500,9 @@ std::istream& operator>>(std::istream& in, Matrix<Field>& m){
 
 
 template<typename Field>
-auto operator+(const Matrix<Field>& left, const Matrix<Field>& right){
+Matrix<Field> operator+(const Matrix<Field>& left, const Matrix<Field>& right){
 	Adder* adder_ptr = new Adder;
-	return (*adder_ptr)(left, right);
+	return adder_ptr->forward(left, right);
 }
 
 template<typename Field>
