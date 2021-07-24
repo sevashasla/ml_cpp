@@ -46,10 +46,8 @@ class Matrix{
 
 	template<typename FField>
 	friend std::istream& operator>>(std::istream& out, Matrix<FField>& m);
-	friend Multiplier;
-	friend Adder;
 
-
+public: //BAD?
 	class Layer: public std::enable_shared_from_this<Layer>{
 	public:
 		Matrix<double>* res_ptr=nullptr;
@@ -72,14 +70,11 @@ class Matrix{
 	};
 
 
-
 private:
 	size_t __m;
 	size_t __n;
 	Field epsilon = 1e-3;
 	std::vector<std::vector<Field>> matrix;
-	std::shared_ptr<Layer> layer_ptr;
-	Matrix<Field>* grad_ptr=nullptr;
 
 	// second = first * coeff + second
 	void add_str(size_t first, size_t second, Field coeff = 1){
@@ -100,14 +95,16 @@ private:
 
 
 public:
+	std::shared_ptr<Layer> layer_ptr;
+	Matrix<Field>* grad_ptr=nullptr;
+
 	Matrix(): Matrix(0, 0, nullptr){}
-
-
 	Matrix(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)), layer_ptr(layer_ptr){
 		for(size_t i = 0; i < std::min(__m, __n); ++i){
 			matrix[i][i] = 1;
 		}
 	}
+
 
 	Matrix(const std::pair<size_t, size_t>& sz, std::shared_ptr<Layer> layer_ptr=nullptr): Matrix(sz.first, sz.second, layer_ptr){}
 	Matrix(const std::pair<size_t, size_t>& sz, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): Matrix(sz.first, sz.second, n, layer_ptr){}

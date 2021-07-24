@@ -5,6 +5,10 @@
 #include <memory>
 
 
+template<typename...>
+void f() = delete;
+
+
 namespace nn{
 	using nnLayer = Matrix<double>::Layer;
 	
@@ -23,11 +27,11 @@ namespace nn{
 	public:
 		ReLU() = default;
 
-		Matrix<double> forward(Matrix<double>& x) {
-			input_ptr = &x;
-			mask(x.size(), 0, nullptr);
+		Matrix<double> forward(Matrix<double>& input) override{
+			input_ptr = &input;
+			mask = Matrix<double>(input.size(), 0, nullptr);
 			
-			Matrix<double> result = x;
+			Matrix<double> result = input;
 			for(size_t i = 0; i < result.num_rows(); ++i){
 				for(size_t j = 0; j < result.num_columns(); ++j){
 					result[i][j] = std::max(result[i][j], 0.0);
@@ -38,7 +42,7 @@ namespace nn{
 			return result;
 		}
 
-		void backward(const Matrix<double>& grad_other){
+		void backward(const Matrix<double>& grad_other) override{
 			auto& grad_current = *(res_ptr->grad_ptr);
 			grad_current += grad_other;
 			Matrix<double> grad_push(grad_other);
@@ -65,7 +69,10 @@ namespace nn{
 		df/dreal_pred_i = 2 * (real_pred_i - real_i)
 		grad_real_pred = 2 * (pred - real)
 	*/
-	
+		MSELoss(const MSELoss& other) = delete;
+		MSELoss& operator=(const MSELoss& other) = delete;
+		MSELoss(MSELoss&& other) = default;
+		MSELoss& operator=(MSELoss&& other) = default;
 
 	private:
 		Matrix<double>* real_ptr=nullptr;
@@ -77,7 +84,7 @@ namespace nn{
 		}
 
 	public:
-	Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred){
+	Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
 			pred_ptr = &pred;
 			real_ptr = &real;
 
@@ -85,19 +92,19 @@ namespace nn{
 				throw BadShape("Wrong sizes. MSELoss, forward");
 			}
 
-			Matrix<double> res(1, 1, 0, nullptr);
-			res->layer_ptr = shared_from_this();
+			Matrix<double> result(1, 1, 0, nullptr);
+			result.layer_ptr = shared_from_this();
 
 			for(size_t i = 0; i < real.num_rows(); ++i){
 				for(size_t j = 0; j < real.num_columns(); ++j){
-					res[0][0] += std::pow(y[i][j] - pred[i][j], 2);
+					result[0][0] += std::pow(real[i][j] - pred[i][j], 2);
 				}
 			}
-			return res;
+			return result;
 		}
 
-		void backward(const Matrix<double>& _not_used=Matrix<double>()){
-			//I don't care about grad_current
+		void backward(const Matrix<double>& _not_used=Matrix<double>()) override{
+			//I don't need to change_crad current
 
 			Matrix<double> grad_push(*pred_ptr);
 			grad_push -= *real_ptr;
@@ -110,107 +117,122 @@ namespace nn{
 	template<size_t In, size_t Out>
 	class Linear: public nnLayer{
 	/*
-		x: N x (In + 1)
-		w: (In + 1) x Out
+		x: N x In
+		w: In x Out
+		b: 1 x Out
+		y: N x Out
+
 		
-
-		let after it will be f(y) and we have grad_y where y = x*w
+		let after it will be f(y) and we have grad_y where y = x*w + b
 		so we need to find dy/dw
+	
+		from Adder:
+			grad_b = grad_y
+			grad_{xw} = grad_y
 
-		let's look at only one vector => 
-		x: 1 x M = (x_1, ... , x_M)
-		y = xw: 1 x C = (y_1, ... , y_C)
-		grad_y: 1 x C = (df(y)/dy_1, ... , df(y)/dy_C)
-
-			(w_{1 1}, ..., w_{1 C})
-		w = 			...			=> y = (x_1 * w_{1 1} + ... + x_M * w_{M 1}, ... , x_1 * w_{1 C} + ... + x_M * w_{M C})
-			(w_{M 1}, ..., w_{M C})
-
-		df(y)/dw_{i j} = df(y)/dy_j * dy_j/dw_{i j} = df(y)/dy_j * x_i
-
-					(df(y)/dy_1 * x_1 , ... , df(y)/dy_C * x_1)		(x_1)
-		grad_w = 						...						= 	...	 * 	(df(y)/dy_1, ... , df(y)/dy_C) = x^T * grad_y
-					(df(y)/dy_1 * x_M , ... , df(y)/dy_C * x_M)		(x_M)
-
+		from Multiplier:
+			grad_x = 1/Out * grad_y * w^T
+			grad_w = 1/N * x^T * grad_y
 	*/
+
 	private:
-		Matrix<double> result;
-		Matrix<double> grad(In + 1, Out, 0.0);
+		Matrix<double>* res_ptr;
+		Matrix<double>* input_ptr;
+
 		Matrix<double> w;
+		Matrix<double> b;
+
+		void change_res_ptr(Matrix<double>* ptr){
+			res_ptr = ptr;
+		}
 
 	public:
-		Linear(): w(Matrix<double>::random(In + 1, Out)){}
+		Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
+		Linear(const Linear& other) = delete;
+		Linear& operator=(const Linear& other) = delete;
 
-		Matrix<double> forward(const Matrix<double>& x) override{
-			if(x.num_columns() != In + 1){
-				throw BadShape("x in forward of linear has wrong shape");
+		Linear(Linear&& other) = default;
+		Linear& operator=(Linear&& other) = default;
+
+		Matrix<double> forward(Matrix<double>& input) override{
+			input_ptr = &input;
+
+			Matrix<double> result = w;
+			result *= input;
+			for(size_t num = 0; num < input.num_columns(); ++num){
+				for(size_t i = 0; i < Out; ++i){
+					result[num][i] += b[0][i];
+				}
 			}
-			result = x * w;
+
+			result.layer_ptr = shared_from_this();
 			return result;
 		}
 		
-		Matrix<double> backward(const Matrix<double>& other_grad) override{
-			grad += result.transpose() * other_grad;
-			return grad;
-		}
+		void backward(const Matrix<double>& grad_other) override{
+			// grad_A = 1/K * grad_f * B^T
+			// grad_B = 1/M * A^T * grad_f
 
-		void zero_grad(){
-			graz.make_zero();
-		}
+			size_t N = input_ptr->num_rows();
 
-		void make_step(double step){
-			grad *= step;
-			w -= grad;
+			Matrix<double> grad_push = grad_other; grad_push *= w.transpose(); grad_push /= Out;
+			Matrix<double> grad_w = input_ptr->transpose(); grad_w *= grad_other; grad_w /= N;
+			Matrix<double> grad_b = Matrix<double>(1, N, 1.0, nullptr); grad_b *= grad_other; grad_b /= N;
+
+			b.layer_ptr.reset();
+			w.layer_ptr.reset();
+
+			b.backward(grad_b);
+			w.backward(grad_w);
+
+			input_ptr->backward(grad_push);
 		}
 
 		~Linear() = default;
 	};
 
-	/*
+	
 	template<typename... Layers>
-	class Sequantial{
+	class Sequential{
 	private:
-		std::list<std::unique_ptr<nnLayer>> seq;
+		std::list<std::shared_ptr<nnLayer>> seq;
+		std::list<Matrix<double>> outputs;
 
-		auto add_ones(const Matrix<double>& x_fresh) const{
-			Matrix<double> res(x_fresh);
-			for(size_t i = 0; i < res.num_rows(); ++i){
-				res[i].push_back(1.0);
-			}
-		}
 		template<typename... LLayers>
 		void PushBackMany(LLayers&&... layers){}
 
 		template<typename Head, typename... LLayers>
 		void PushBackMany(Head&& head, LLayers&&... layers){
-			seq.push_back(new Head(std::forward<Head>(head)));
+			seq.push_back(std::make_shared< std::remove_reference_t<Head> >(std::forward<Head>(head)));
 			PushBackMany(std::forward<LLayers>(layers)...);
 		}
 
 	public:
 		static const size_t length = sizeof...(Layers);
-		Sequantial(): Sequantial(Layers()...){}
+		Sequential(): Sequential(Layers()...){}
 
 		template<typename... LLayers>
-		Sequantial(LLayers&&... layers){
+		Sequential(LLayers&&... layers){
 			PushBackMany(std::forward<LLayers>(layers)...);
 		}
 
-		auto forward(const Matrix<double>& x_fresh) {
-			auto x = x_fresh;
+		Matrix<double> forward(const Matrix<double>& input) {
+			outputs.clear();
+			outputs.push_back(input);
 			for(auto& layer_ptr: seq){
-				x = layer_ptr->forward(x);
+				auto& input_current = outputs.back();
+				auto&& output_current = layer_ptr->forward(input_current);
+				outputs.push_back(std::move(output_current));
 			}
-			return x;
+			return outputs.back();
 		}
 
 		void backward(Matrix<double>& grad_other){
 			seq.back()->backward(grad_other);
 		}
 
-		~Sequantial(){}
+		~Sequential(){}
 	};
-	*/
 
 }
 
