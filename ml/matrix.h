@@ -35,6 +35,7 @@ struct BadShape: public std::exception{
 // 	}
 // }
 
+
 class Multiplier;
 class Adder;
 
@@ -53,7 +54,7 @@ class Matrix{
 	public:
 		Matrix<double>* res_ptr=nullptr;
 		virtual void backward(const Matrix<double>&) = 0;
-		virtual Matrix<double>& forward(Matrix<double>&, Matrix<double>&) = 0;
+		virtual Matrix<double> forward(Matrix<double>&, Matrix<double>&) = 0;
 		virtual void change_res_ptr(Matrix<double>*) = 0;
 		virtual ~Layer(){
 			cout << "~Layer()\n";
@@ -61,10 +62,7 @@ class Matrix{
 	};
 
 
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-public:	
-	std::shared_ptr<Layer> layer_ptr;
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 
 private:
@@ -72,7 +70,7 @@ private:
 	size_t __n;
 	Field epsilon = 1e-3;
 	std::vector<std::vector<Field>> matrix;
-
+	std::shared_ptr<Layer> layer_ptr;
 	Matrix<Field>* grad_ptr=nullptr;
 
 	// second = first * coeff + second
@@ -297,8 +295,8 @@ public:
 			}
 			
 			//	I need to do change_res_ptr due to 
-			//	occurs calls of copy constructors and original
-			//	Matrix has died
+			//	occurs calls of copy constructors and I 
+			//	don't have original matrix
 			layer_ptr->change_res_ptr(this);
 
 			//	call backward of the layer. It knows how to count grad
@@ -397,22 +395,18 @@ private:
 	}
 
 public:
-	Multiplier(){
-		res_ptr = new Matrix<double>(1, 1, 0.0);
-	}
+	Multiplier(){}
 
-	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right) override{
+	Matrix<double> forward(Matrix<double>& left, Matrix<double>& right) override{
 		if(left.num_columns() != right.num_rows()){
-			delete res_ptr;
 			throw BadShape("sizes must be m x n * n x k. Multiplier, forward");
 		}
 
 		left_ptr = &left;
 		right_ptr = &right;
-		*res_ptr = matmul(left, right);
-
-		res_ptr->layer_ptr = shared_from_this();
-		return *res_ptr;
+		Matrix<double> result = matmul(left, right);
+		result.layer_ptr = shared_from_this();
+		return result;
 	}
 
 
@@ -426,7 +420,6 @@ public:
 
 	~Multiplier(){
 		cout << "~Multiplier()\n";
-		delete res_ptr;
 	}
 };
 
@@ -456,36 +449,34 @@ private:
 		res_ptr = ptr; 
 	}
 
+	Matrix<double> add(Matrix<double>& left, Matrix<double>& right){
+		Matrix<double> result = left;
+		for(size_t i = 0; i < left.num_rows(); ++i){
+			for(size_t j = 0; j < left.num_columns(); ++j){
+				result[i][j] += right[i][j];
+			}
+		}
+		return result;		
+	}
+
 public:
 	Adder(const Adder&) = delete;
 	Adder& operator=(const Adder&) = delete;
 
-	Adder(){
-		res_ptr = new Matrix<double>(1, 1, 0.0);
-	}
+	Adder(){}
 
-	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right) override{
+	Matrix<double> forward(Matrix<double>& left, Matrix<double>& right) override{
 		if(left.size() != right.size()){
-			delete res_ptr;
 			throw BadShape("Wrong shapes of matrices. Adder, forward");
 		}
 
 		this->left_ptr = &left;
 		this->right_ptr = &right;
-
-
-///
-		*res_ptr = left;
-		res_ptr->layer_ptr = shared_from_this();
 		
-///
+		Matrix<double> result = add(left, right);
+		result.layer_ptr = shared_from_this();
 
-		for(size_t i = 0; i < left.num_rows(); ++i){
-			for(size_t j = 0; j < left.num_columns(); ++j){
-				(*res_ptr)[i][j] += right[i][j];
-			}
-		}
-		return *res_ptr;
+		return result;
 	}
 
 	void backward(const Matrix<double>& grad_other) override{
@@ -497,7 +488,6 @@ public:
 
 	~Adder(){
 		cout << "~Adder()\n";
-		delete res_ptr;
 	}
 };
 
@@ -517,13 +507,12 @@ Matrix<Field> operator*(Matrix<Field>& left, Matrix<Field>& right){
 }
 
 
-
-
 template<typename Field>
 Matrix<Field> operator+(Matrix<Field>& left, Matrix<Field>& right){
 	std::shared_ptr<Adder> adder_ptr = std::make_shared<Adder>();
 	return adder_ptr->forward(left, right);
 }
+
 
 //wrong!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 template<typename Field>
