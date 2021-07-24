@@ -6,27 +6,17 @@
 using std::cin, std::cout, std::vector;
 
 
-struct A{
-	struct B{
-		A* ptr;
+struct A: public std::enable_shared_from_this<A>{};
 
-		void f(){
-			ptr->f();
-		}
-	};
-
-	B& f(int){
-		B* b = new B;
-		return *b;
-	}
-
-	void f(){
-		cout << 1;
+struct B: public A{
+	std::shared_ptr<A> get_ptr_B(){
+		return shared_from_this();
 	}
 };
 
-
 int main(){
+	std::shared_ptr<B> b_ptr = std::make_shared<B>();
+	b_ptr->get_ptr_B();
 	
 
 	return 0;

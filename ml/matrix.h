@@ -49,22 +49,31 @@ class Matrix{
 	friend Adder;
 
 
-	class Layer{
+	class Layer: public std::enable_shared_from_this<Layer>{
 	public:
 		Matrix<double>* res_ptr=nullptr;
 		virtual void backward(const Matrix<double>&) = 0;
 		virtual Matrix<double>& forward(Matrix<double>&, Matrix<double>&) = 0;
 		virtual void change_res_ptr(Matrix<double>*) = 0;
-		virtual ~Layer() = default;
+		virtual ~Layer(){
+			cout << "~Layer()\n";
+		}
 	};
+
+
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+public:	
+	std::shared_ptr<Layer> layer_ptr;
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 private:
 	size_t __m;
 	size_t __n;
 	Field epsilon = 1e-3;
 	std::vector<std::vector<Field>> matrix;
-	Layer* layer=nullptr;
-	Matrix<Field>* grad_ptr=nullptr;//not good
+
+	Matrix<Field>* grad_ptr=nullptr;
 
 	// second = first * coeff + second
 	void add_str(size_t first, size_t second, Field coeff = 1){
@@ -88,24 +97,24 @@ public:
 	Matrix(): Matrix(1, 1, nullptr){}
 
 
-	Matrix(size_t m, size_t n, Layer* layer=nullptr): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)), layer(layer){
+	Matrix(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)), layer_ptr(layer_ptr){
 		for(size_t i = 0; i < std::min(__m, __n); ++i){
 			matrix[i][i] = 1;
 		}
 	}
 
-	Matrix(const std::pair<size_t, size_t>& sz, Layer* layer=nullptr): Matrix(sz.first, sz.second, layer){}
-	Matrix(const std::pair<size_t, size_t>& sz, size_t n, Layer* layer=nullptr): Matrix(sz.first, sz.second, n, layer){}
+	Matrix(const std::pair<size_t, size_t>& sz, std::shared_ptr<Layer> layer_ptr=nullptr): Matrix(sz.first, sz.second, layer_ptr){}
+	Matrix(const std::pair<size_t, size_t>& sz, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): Matrix(sz.first, sz.second, n, layer_ptr){}
 
-	static Matrix<Field> eye(size_t m, size_t n, Layer* layer=nullptr){
-		return Matrix<Field>(m, n, layer);
+	static Matrix<Field> eye(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr){
+		return Matrix<Field>(m, n, layer_ptr);
 	}
 
-	static Matrix<Field> random(size_t m, size_t n, Layer* layer=nullptr){
-		Matrix<Field> res(m, n, 0, nullptr);
+	static Matrix<Field> random(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr){
+		Matrix<Field> res(m, n, 0, layer_ptr);
 		for(size_t i = 0; i < m; ++i){
 			for(size_t j = 0; j < n; ++j){
-				res[i][j] = static_cast<Field>(rand()) / static_cast<Field>(RAND_MAX);
+				res[i][j] = static_cast<Field>(rand()) / RAND_MAX * 2.0 - 1.0;
 			}
 		}
 		return res;
@@ -113,24 +122,22 @@ public:
 
 	void push_back(const std::vector<double>& v){
 		matrix.push_back(v);
+		++__m;
 	}
 
 
-	Matrix(size_t m, size_t n, const Field& f, Layer* layer=nullptr): __m(m), __n(n), 
-	matrix(__m, std::vector<Field>(__n, f)), layer(layer){}
+	Matrix(size_t m, size_t n, const Field& f, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), 
+	matrix(__m, std::vector<Field>(__n, f)), layer_ptr(layer_ptr){}
 
 
 	Matrix(const Matrix& other): __m(other.__m), __n(other.__n), 
-	epsilon(epsilon), matrix(other.matrix), layer(other.layer), grad_ptr(other.grad_ptr){
-		// other.grad_ptr = nullptr;
-		// other.layer = nullptr;
-	}
+	epsilon(epsilon), matrix(other.matrix), layer_ptr(other.layer_ptr), grad_ptr(other.grad_ptr){}
 
 
 	Matrix(Matrix&& other): __m(other.__m), __n(other.__n), 
-	epsilon(epsilon), matrix(std::move(other.matrix)), layer(other.layer), grad_ptr(other.grad_ptr){
+	epsilon(epsilon), matrix(std::move(other.matrix)), layer_ptr(std::move(other.layer_ptr)), grad_ptr(other.grad_ptr){
 		other.grad_ptr = nullptr;
-		other.layer = nullptr;
+		//Maybe not good!!!
 		__m = 0;
 		__n = 0;
 	}
@@ -145,18 +152,16 @@ public:
 		__m = other.__m;
 		__n = other.__n;
 		matrix = other.matrix;
-		layer = other.layer;
+		layer_ptr = other.layer_ptr;
 		return *this;
 	}
 
 	Matrix& operator=(Matrix&& other) & {
-		
 		__m = other.__m;
 		__n = other.__n;
 		matrix = std::move(other.matrix);
-		layer = other.layer;
+		layer_ptr = std::move(other.layer_ptr);
 		other.__m = other.__n = 0;
-		other.layer = nullptr;
 		return *this;
 	}
 
@@ -187,10 +192,9 @@ public:
 	}
 
 	Matrix& operator*=(const Matrix<Field>& other){
-		
 		//m x n * n x k
 		if(__n != other.__m){
-			throw BadShape("One can't multiply (*=) matrices with such shapes");
+			throw BadShape("Wrong shapes of matrices. Matrix, *=");
 		}
 
 		Matrix<Field> result(__m, other.__n, 0);
@@ -208,7 +212,7 @@ public:
 
 	Matrix& operator+=(const Matrix<Field>& other){
 		if(size() != other.size()){
-			throw BadShape("One can't add (+=) matrices with such shapes");
+			throw BadShape("Wrong shapes of matrices. Matrix, +=");
 		}
 
 		for(size_t i = 0; i < __m; ++i){
@@ -222,7 +226,7 @@ public:
 	Matrix& operator-=(const Matrix<Field>& other){
 		
 		if(size() != other.size()){
-			throw BadShape("One can't subtract (-=) matrices with such shapes");
+			throw BadShape("Wrong shapes of matrices. Matrix, -=");
 		}
 
 		for(size_t i = 0; i < __m; ++i){
@@ -233,7 +237,7 @@ public:
 		return *this;
 	}
 
-	void make_zero() {
+	void make_zero(){
 		for(size_t i = 0; i < __m; ++i){
 			for(size_t j = 0; j < __n; ++j){
 				matrix[i][j] = 0.0;
@@ -276,34 +280,46 @@ public:
 
 
 	template<typename FField>
-	explicit operator FField() const{
-		Matrix<FField> res(__m, __n, 0, layer);
+	explicit operator Matrix<FField>() const{
+		Matrix<FField> res(__m, __n, 0, nullptr);
 		for(size_t i = 0; i < __m; ++i){
 			for(size_t j = 0; j < __n; ++j){
 				res[i][j] = static_cast<FField>(matrix[i][j]);
 			}
 		}
+		return res;
 	}
 
 	void backward(const Matrix<Field>& grad_other) {
-		if(layer){
+		if(layer_ptr){
 			if(!grad_ptr){
-				grad_ptr = new Matrix<double>(grad_other.size(), 0.0);
+				grad_ptr = new Matrix<Field>(grad_other.size(), 0.0);
 			}
-			layer->change_res_ptr(this);
-			layer->backward(grad_other);
+			
+			//	I need to do change_res_ptr due to 
+			//	occurs calls of copy constructors and original
+			//	Matrix has died
+			layer_ptr->change_res_ptr(this);
+
+			//	call backward of the layer. It knows how to count grad
+			layer_ptr->backward(grad_other);
+
+			//	and here I need to delete layer, because on every iteration
+			//	I will create graph again
+			layer_ptr.reset();
+
 		} else {
 			if(!grad_ptr){
-				grad_ptr = new Matrix<double>(grad_other);	
+
+				//It means, that this is the leaf
+				grad_ptr = new Matrix<Field>(grad_other);	
 			}
 		}
-
-		//where will I delete layer???!!!
-		//delete layer;
 	}
 
 	void zero_grad(){
 		grad_ptr->make_zero();//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//and call zero_grad of other
 	}
 
 	const Matrix<Field>& get_grad() const{
@@ -311,6 +327,7 @@ public:
 	}
 
 	~Matrix(){
+		cout << "~Matrix()\n";
 		delete grad_ptr;
 	}
 };
@@ -382,7 +399,6 @@ private:
 public:
 	Multiplier(){
 		res_ptr = new Matrix<double>(1, 1, 0.0);
-		res_ptr->layer = this;
 	}
 
 	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right) override{
@@ -393,9 +409,9 @@ public:
 
 		left_ptr = &left;
 		right_ptr = &right;
-
 		*res_ptr = matmul(left, right);
-		res_ptr->layer = this;
+
+		res_ptr->layer_ptr = shared_from_this();
 		return *res_ptr;
 	}
 
@@ -403,8 +419,7 @@ public:
 	void backward(const Matrix<double>& grad_other) override{
 		auto& grad_current = *(res_ptr->grad_ptr);
 		grad_current += grad_other;
-		
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!grad_other or something other?!!!!!!!!!!!!!!!
+
 		left_ptr->backward(mulscalar(1.0 / right_ptr->num_columns(), matmul(grad_current, right_ptr->transpose())));
 		right_ptr->backward(mulscalar(1.0 / left_ptr->num_rows(), matmul(left_ptr->transpose(), grad_current)));
 	}
@@ -436,11 +451,15 @@ private:
 	Matrix<double>* left_ptr=nullptr;
 	Matrix<double>* right_ptr=nullptr;
 	Matrix<double>* res_ptr=nullptr;
-	virtual void change_res_ptr(Matrix<double>* ptr) {
-		res_ptr = ptr;
+
+	virtual void change_res_ptr(Matrix<double>* ptr){
+		res_ptr = ptr; 
 	}
 
 public:
+	Adder(const Adder&) = delete;
+	Adder& operator=(const Adder&) = delete;
+
 	Adder(){
 		res_ptr = new Matrix<double>(1, 1, 0.0);
 	}
@@ -448,14 +467,18 @@ public:
 	Matrix<double>& forward(Matrix<double>& left, Matrix<double>& right) override{
 		if(left.size() != right.size()){
 			delete res_ptr;
-			throw BadShape("left and right must have the same sizes. Adder, forward");
+			throw BadShape("Wrong shapes of matrices. Adder, forward");
 		}
 
 		this->left_ptr = &left;
 		this->right_ptr = &right;
 
+
+///
 		*res_ptr = left;
-		res_ptr->layer = this;
+		res_ptr->layer_ptr = shared_from_this();
+		
+///
 
 		for(size_t i = 0; i < left.num_rows(); ++i){
 			for(size_t j = 0; j < left.num_columns(); ++j){
@@ -479,45 +502,30 @@ public:
 };
 
 
+// class Transposer: public Matrix<double>::Layer{
+// private:
+
+// public:
+// };
+
+
 
 template<typename Field>
 Matrix<Field> operator*(Matrix<Field>& left, Matrix<Field>& right){
-	//SHARED PTR MAYBE?
-	Multiplier* multiplier_ptr = new Multiplier;
+	std::shared_ptr<Multiplier> multiplier_ptr = std::make_shared<Multiplier>();
 	return multiplier_ptr->forward(left, right);
 }
 
 
-template<typename Field>
-std::ostream& operator<<(std::ostream& out, const Matrix<Field>& m){
-	for(auto& row: m.matrix){
-		for(auto& elem: row){
-			out << elem << " ";
-		}
-		out << "\n";
-	}
-	return out;
-}
-
-
-template<typename Field>
-std::istream& operator>>(std::istream& in, Matrix<Field>& m){
-	for(auto& row: m.matrix){
-		for(auto& elem: row){
-			in >> elem;
-		}
-	}
-	return in;
-}
 
 
 template<typename Field>
 Matrix<Field> operator+(Matrix<Field>& left, Matrix<Field>& right){
-	Adder* adder_ptr = new Adder;
+	std::shared_ptr<Adder> adder_ptr = std::make_shared<Adder>();
 	return adder_ptr->forward(left, right);
 }
 
-
+//wrong!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 template<typename Field>
 auto operator-(Matrix<Field>& left, Matrix<Field>& right){
 	auto _copy = left;
@@ -554,3 +562,26 @@ auto operator!=(const Matrix<Field>& left, const Matrix<Field>& right){
 	}
 	return res;
 }
+
+template<typename Field>
+std::ostream& operator<<(std::ostream& out, const Matrix<Field>& m){
+	for(auto& row: m.matrix){
+		for(auto& elem: row){
+			out << elem << " ";
+		}
+		out << "\n";
+	}
+	return out;
+}
+
+
+template<typename Field>
+std::istream& operator>>(std::istream& in, Matrix<Field>& m){
+	for(auto& row: m.matrix){
+		for(auto& elem: row){
+			in >> elem;
+		}
+	}
+	return in;
+}
+
