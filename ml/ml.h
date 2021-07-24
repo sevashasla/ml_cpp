@@ -6,92 +6,106 @@
 
 
 namespace nn{
-	//Do I need such class?
-	class nnLayer: public Layer{
-	public:
-		virtual Matrix<double> forward(const Matrix<double>&) = 0;
-		virtual Matrix<double> backward(const Matrix<double>&) = 0;
-		virtual ~nnLayer(){}
-	};
-
-	class Loss{
-	public:
-		virtual Matrix<double> forward(const Matrix<double>&, const Matrix<double>&) = 0;
-		virtual Matrix<double> backward(const Matrix<double>&) = 0;
-		virtual ~Loss(){}
-	};
-
+	using nnLayer = Matrix<double>::Layer;
 	
-	/*
 	template<size_t N>
-	class ReLU: nnLayer{
-		
-		
+	class ReLU: nnLayer{	
+	
 	private:
-		Matrix<double> grad;
+		Matrix<double>* res_ptr=nullptr;
+		Matrix<double>* input_ptr=nullptr;
+		Matrix<bool> mask;
+
+		virtual void change_res_ptr(Matrix<double>* ptr) {
+			res_ptr = ptr;
+		}
 
 	public:
-		
-		auto forward(const Matrix<double>& x) {
-			auto res = x;
-			for(size_t i = 0; i < res.num_rows(); ++i){
-				for(size_t j = 0; j < res.num_columns(); ++j){
-					res[i][j] = std::max<double>(0, res[i][j]);
+		ReLU() = default;
+
+		Matrix<double> forward(Matrix<double>& x) {
+			input_ptr = &x;
+			mask(x.size(), 0, nullptr);
+			
+			Matrix<double> result = x;
+			for(size_t i = 0; i < result.num_rows(); ++i){
+				for(size_t j = 0; j < result.num_columns(); ++j){
+					result[i][j] = std::max(result[i][j], 0.0);
+					mask[i][j] = (result[i][j] > 0.0);
 				}
 			}
-
+			result.layer_ptr = shared_from_this();
+			return result;
 		}
 
-		void backward(){
-
+		void backward(const Matrix<double>& grad_other){
+			auto& grad_current = *(res_ptr->grad_ptr);
+			grad_current += grad_other;
+			Matrix<double> grad_push(grad_other);
+			for(size_t i = 0; i < grad_push.num_rows(); ++i){
+				for(size_t j = 0; j < grad_push.num_columns(); ++j){
+					grad_push[i][j] *= mask[i][j];
+				}
+			}
+			input_ptr->backward(grad_push);
 		}
-
 	};
-	*/
+	
 
 
-	/*	
-	class MSELoss: Loss{
-		y: N x C
+	class MSELoss: nnLayer{
+	/*
+		real: N x C
 		pred: N x C
 		let's look at only one
-		y: 1 x C = (y_1, ... , y_C)
-		pred: 1 x C = (y_pred_1, ... , y_pred_C)
+		real: 1 x C = (real_1, ... , real_C)
+		pred: 1 x C = (real_pred_1, ... , real_pred_C)
 
-		f = (y_1 - y_pred_1) ^ 2 + ... + (y_C - y_pred_C) ^ 2
-		df/dy_pred_i = 2 * (y_pred_i - y_i)
-		grad_y_pred = 2 * (pred - y)
+		f = (real_1 - real_pred_1) ^ 2 + ... + (real_C - real_pred_C) ^ 2
+		df/dreal_pred_i = 2 * (real_pred_i - real_i)
+		grad_real_pred = 2 * (pred - real)
+	*/
 	
 
 	private:
-		Matrix<double> grad;
-		Matrix<double>* pred_ptr;
-		const Matrix<double>* y_ptr;
+		Matrix<double>* real_ptr=nullptr;
+		Matrix<double>* pred_ptr=nullptr;
+		Matrix<double>* res_ptr=nullptr;
 
+		void change_res_ptr(Matrix<double>* ptr){
+			res_ptr = ptr;
+		}
 
 	public:
-	auto forward(const Matrix<double>& y, Matrix<double> pred){
-			pred_ptr = &pred;//Will it be good?
-			y_ptr = &y;
+	Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred){
+			pred_ptr = &pred;
+			real_ptr = &real;
 
-			if(y.size() != pred.size()){
-				throw BadShape("y and pred don't have equal sizes in MSELoss");
+			if(real.size() != pred.size()){
+				throw BadShape("Wrong sizes. MSELoss, forward");
 			}
-			double res = 0.0;
-			for(size_t i = 0; i < y.num_rows(); ++i){
-				for(size_t j = 0; j < y.num_columns(); ++j){
-					res += std::pow(y[i][j] - pred[i][j], 2);
+
+			Matrix<double> res(1, 1, 0, nullptr);
+			res->layer_ptr = shared_from_this();
+
+			for(size_t i = 0; i < real.num_rows(); ++i){
+				for(size_t j = 0; j < real.num_columns(); ++j){
+					res[0][0] += std::pow(y[i][j] - pred[i][j], 2);
 				}
 			}
 			return res;
 		}
 
-		auto backward(){
-			grad += 2 * (*pred_ptr - *y_ptr);
-			pred_ptr->backward(grad);
+		void backward(const Matrix<double>& _not_used=Matrix<double>()){
+			//I don't care about grad_current
+
+			Matrix<double> grad_push(*pred_ptr);
+			grad_push -= *real_ptr;
+			grad_push *= 2;
+
+			pred_ptr->backward(grad_push);
 		}
 	};
-	*/
 
 	template<size_t In, size_t Out>
 	class Linear: public nnLayer{

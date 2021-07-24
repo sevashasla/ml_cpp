@@ -54,14 +54,22 @@ class Matrix{
 	public:
 		Matrix<double>* res_ptr=nullptr;
 		virtual void backward(const Matrix<double>&) = 0;
-		virtual Matrix<double> forward(Matrix<double>&, Matrix<double>&) = 0;
+
+		//I have different with different number of input arguments
+		virtual Matrix<double> forward(Matrix<double>&, Matrix<double>&){
+			throw std::runtime_error("One tries to call forward(Matrix<double>&, Matrix<double>&)");
+			return Matrix<double>();
+		}
+		virtual Matrix<double> forward(Matrix<double>&){
+			throw std::runtime_error("One tries to call forward(Matrix<double>&)");
+			return Matrix<double>();
+		}
+
 		virtual void change_res_ptr(Matrix<double>*) = 0;
 		virtual ~Layer(){
 			cout << "~Layer()\n";
 		}
 	};
-
-
 
 
 
@@ -92,7 +100,7 @@ private:
 
 
 public:
-	Matrix(): Matrix(1, 1, nullptr){}
+	Matrix(): Matrix(0, 0, nullptr){}
 
 
 	Matrix(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)), layer_ptr(layer_ptr){
@@ -127,7 +135,7 @@ public:
 	Matrix(size_t m, size_t n, const Field& f, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), 
 	matrix(__m, std::vector<Field>(__n, f)), layer_ptr(layer_ptr){}
 
-
+	//STRANGE WITH GRAD_PTR?
 	Matrix(const Matrix& other): __m(other.__m), __n(other.__n), 
 	epsilon(epsilon), matrix(other.matrix), layer_ptr(other.layer_ptr), grad_ptr(other.grad_ptr){}
 
