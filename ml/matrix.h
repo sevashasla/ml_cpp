@@ -21,20 +21,6 @@ struct BadShape: public std::exception{
 	}
 };
 
-// struct HadLayer: public std::exception{
-// 	const char* ptr=nullptr;
-// 	HadLayer(const char* ptr): ptr(ptr){}
-
-// 	HadLayer(const HadLayer&) = default;
-// 	HadLayer(HadLayer&&) = default;
-// 	HadLayer& operator=(const HadLayer&) = default;
-// 	HadLayer& operator=(HadLayer&&) = default;
-
-// 	const char* what() const noexcept override{
-// 		return ptr;
-// 	}
-// }
-
 
 class Multiplier;
 class Adder;
@@ -52,13 +38,19 @@ class Matrix{
 	template<typename FField>
 	friend std::istream& operator>>(std::istream& out, Matrix<FField>& m);
 
-public: //BAD?
+public: 
+	//	common class for every layer for neural network
+	//	It's good to make it outside Matrix, but I can't
+	//	due to not full implemented class
+
 	class Layer: public std::enable_shared_from_this<Layer>{
 	public:
 		Matrix<double>* res_ptr=nullptr;
+
+		//	For pushing gradient deeper
 		virtual void backward(const Matrix<double>&) = 0;
 
-		//I have different methods with different number of input arguments
+		//	I have different methods with different number of input arguments
 		virtual Matrix<double> forward(Matrix<double>&, Matrix<double>&){
 			throw std::runtime_error("One tries to call forward(Matrix<double>&, Matrix<double>&)");
 			return Matrix<double>();
@@ -67,9 +59,16 @@ public: //BAD?
 			throw std::runtime_error("One tries to call forward(Matrix<double>&)");
 			return Matrix<double>();
 		}
+
+		//	For change weights
 		virtual void make_step(double) = 0;
 		virtual void zero_grad() = 0;
+
+		//	There are no virtual variables, but I need to change
+		//	variable of the lower class
 		virtual void change_res_ptr(Matrix<double>*) = 0;
+
+		//	For breaking graph because on every iteration it has to been builded again
 		virtual void break_graph() = 0;
 		virtual ~Layer() = default;
 	};
@@ -95,40 +94,28 @@ private:
 
 
 public:
+
+	//	This pointer shows how it was created
 	std::shared_ptr<Layer> layer_ptr;
 	std::shared_ptr<Matrix<Field>> grad_ptr;
 
 	Matrix(): Matrix(0, 0, nullptr){}
-	Matrix(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)), layer_ptr(layer_ptr){
+
+	//	Construct Matrix: m x n with layer_ptr and with 1 on the main diag
+	Matrix(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), 
+	matrix(__m, std::vector<Field>(__n, 0)), layer_ptr(layer_ptr){
 		for(size_t i = 0; i < std::min(__m, __n); ++i){
 			matrix[i][i] = 1;
 		}
 	}
 
-
+	//	Construct Matrix: sz with layer_ptr
 	Matrix(const std::pair<size_t, size_t>& sz, std::shared_ptr<Layer> layer_ptr=nullptr): Matrix(sz.first, sz.second, layer_ptr){}
+
+	//	Construct Matrix: sz with layer_ptr and full of "n"
 	Matrix(const std::pair<size_t, size_t>& sz, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): Matrix(sz.first, sz.second, n, layer_ptr){}
 
-	static Matrix<Field> eye(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr){
-		return Matrix<Field>(m, n, layer_ptr);
-	}
-
-	static Matrix<Field> random(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr){
-		Matrix<Field> res(m, n, 0, layer_ptr);
-		for(size_t i = 0; i < m; ++i){
-			for(size_t j = 0; j < n; ++j){
-				res[i][j] = static_cast<Field>(rand()) / RAND_MAX * 2.0 - 1.0;
-			}
-		}
-		return res;
-	}
-
-	void push_back(const std::vector<double>& v){
-		matrix.push_back(v);
-		++__m;
-	}
-
-
+	//	Construct Matrix: m x n, full of f
 	Matrix(size_t m, size_t n, const Field& f, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), 
 	matrix(__m, std::vector<Field>(__n, f)), layer_ptr(layer_ptr){}
 
@@ -140,6 +127,7 @@ public:
 		other.__m = other.__n = 0;
 	}
 
+	//	Construct Matrix from vector
 	Matrix(const std::vector<std::vector<Field>>& matrix_other): __m(matrix_other.size()), 
 	__n(matrix_other[0].size()), matrix(matrix_other){}
 
@@ -162,6 +150,36 @@ public:
 		grad_ptr = std::move(other.grad_ptr);
 		other.__m = other.__n = 0;
 		return *this;
+	}
+
+	//	Get Matrix: m x n with layer_ptr and with 1 on the main diag
+	static Matrix<Field> eye(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr){
+		return Matrix<Field>(m, n, layer_ptr);
+	}
+
+	//	Get Matrix: m x n with layer_ptr and it contains random numbers
+	static Matrix<Field> random(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr){
+		Matrix<Field> res(m, n, 0, layer_ptr);
+		for(size_t i = 0; i < m; ++i){
+			for(size_t j = 0; j < n; ++j){
+				res[i][j] = static_cast<Field>(rand()) / RAND_MAX * 2.0 - 1.0;
+			}
+		}
+		return res;
+	}
+
+	//	For adding another one row
+	void push_row(const std::vector<double>& v){
+		matrix.push_back(v);
+		++__m;
+	}
+
+	//	For adding another one column
+	void push_column(const std::vector<double>& v){
+		for(size_t i = 0; i < __m; ++i){
+			matrix[i].push_back(v[i]);
+		}
+		++__n;
 	}
 
 	std::vector<Field>& operator[](size_t i) {
@@ -223,7 +241,6 @@ public:
 	}
 
 	Matrix& operator-=(const Matrix<Field>& other){
-		
 		if(size() != other.size()){
 			throw BadShape("Wrong shapes of matrices. Matrix, -=");
 		}
@@ -236,6 +253,7 @@ public:
 		return *this;
 	}
 
+	//	make current matrix full of 0
 	void make_zero(){
 		for(size_t i = 0; i < __m; ++i){
 			for(size_t j = 0; j < __n; ++j){
@@ -255,15 +273,17 @@ public:
 	}
 
 
+	//	Get result if we sum every element
 	Field sum() const{
-		Field _sum = 0.0;
-		for(size_t i = 0; i < __m; ++i){
-			for(size_t j = 0; j < __n; ++j){
-				_sum += matrix[i][j];
+		Field _sum = 0;
+		for(auto& row: matrix){
+			for(auto& elem: row){
+				_sum += elem;
 			}
 		}
 		return _sum;
 	}
+
 
 	std::pair<size_t, size_t> size() const{
 		return std::make_pair(__m, __n);
@@ -277,7 +297,6 @@ public:
 		return __n;
 	}
 
-
 	template<typename FField>
 	explicit operator Matrix<FField>() const{
 		Matrix<FField> res(__m, __n, 0, nullptr);
@@ -290,10 +309,13 @@ public:
 	}
 
 	void backward(const Matrix<Field>& grad_other){
+		//	I can't create grad_ptr in constructors 
+		//	otherwise there is infinite recursion
 		if(!grad_ptr){
 			grad_ptr = std::make_shared<Matrix<Field>>(grad_other.size(), 0.0);
 		}
 
+		//	the most important step
 		*grad_ptr += grad_other;
 
 		if(layer_ptr){	
@@ -307,43 +329,48 @@ public:
 		}
 	}
 
+	//	I need this one for loss functions
 	void backward(){
 		if(!grad_ptr){
 			grad_ptr = std::make_shared<Matrix<Field>>();
 		}
 		if(layer_ptr){
+			layer_ptr->change_res_ptr(this);			
 			layer_ptr->backward();
 		}
 	}
 
 	void make_step(double step){
+		//	Here I call layer, because it knows how to change weights
 		if(layer_ptr){
 			layer_ptr->make_step(step);
 		}
 	}
 
 	void break_graph(){
-		//by recursion I will break the graph
+		//	with help of recursion I will break the graph
 		if(layer_ptr){
 			layer_ptr->break_graph();
 			layer_ptr.reset();
 		}
+		//	I can't do it in another order
+		//	because I destory connection between them
 	}
 
 	void zero_grad(){
-		if(grad_ptr){
-			grad_ptr->make_zero();
-		}
-
+		//	make own grad equal to zero and push instruction down
+		grad_ptr->make_zero();
 		if(layer_ptr){
 			layer_ptr->zero_grad();
 		}
 	}
 
-	const Matrix<Field>& get_gradient() const{
+	const Matrix<Field>& get_grad() const{
 		return *grad_ptr;
 	}
 
+	//	I don't allocate vatiables
+	//	So there are trivial destructor
 	~Matrix() = default;
 };
 
@@ -377,7 +404,11 @@ private:
 		res_ptr = ptr;
 	}
 
-	Matrix<double> matmul(const Matrix<double>& left, const Matrix<double>& right) const{
+
+public:
+	Multiplier(){}
+
+	static Matrix<double> matmul(const Matrix<double>& left, const Matrix<double>& right){
 	/*
 		c[i][j] = sum_k_(a[i][k] * b[k][j]);
 		(M x N) * (N x K) -> (M x K)
@@ -400,8 +431,7 @@ private:
 		return result;
 	}
 
-
-	Matrix<double> mulscalar(double scalar, const Matrix<double>& matrix) const{
+	static Matrix<double> mulscalar(double scalar, const Matrix<double>& matrix){
 		Matrix<double> result = matrix;
 		for(size_t i = 0; i < result.num_rows(); ++i){
 			for(size_t j = 0; j < result.num_columns(); ++j){
@@ -410,9 +440,6 @@ private:
 		}
 		return result;
 	}
-
-public:
-	Multiplier(){}
 
 	Matrix<double> forward(Matrix<double>& left, Matrix<double>& right) override{
 		if(left.num_columns() != right.num_rows()){
@@ -425,7 +452,6 @@ public:
 		result.layer_ptr = shared_from_this();
 		return result;
 	}
-
 
 	void backward(const Matrix<double>& grad_other) override{
 		auto& grad_current = *(res_ptr->grad_ptr);
@@ -478,7 +504,7 @@ private:
 		res_ptr = ptr; 
 	}
 
-	Matrix<double> add(Matrix<double>& left, Matrix<double>& right){
+	static Matrix<double> add(Matrix<double>& left, Matrix<double>& right){
 		Matrix<double> result = left;
 		for(size_t i = 0; i < left.num_rows(); ++i){
 			for(size_t j = 0; j < left.num_columns(); ++j){
@@ -499,8 +525,8 @@ public:
 			throw BadShape("Wrong shapes of matrices. Adder, forward");
 		}
 
-		this->left_ptr = &left;
-		this->right_ptr = &right;
+		left_ptr = &left;
+		right_ptr = &right;
 		
 		Matrix<double> result = add(left, right);
 		result.layer_ptr = shared_from_this();
@@ -534,11 +560,107 @@ public:
 };
 
 
-// class Transposer: public Matrix<double>::Layer{
-// private:
+class Subtractor: public Matrix<double>::Layer{
+private:
+	Matrix<double>* res_ptr;
+	Matrix<double>* left_ptr;
+	Matrix<double>* right_ptr;
 
-// public:
-// };
+	static Matrix<double> subtract(const Matrix<double>& left, const Matrix<double>& right){
+		Matrix<double> result(left);
+		for(size_t i = 0; i < left.num_rows(); ++i){
+			for(size_t j = 0; j < left.num_columns(); ++j){
+				result[i][j] -= right[i][j];
+			}
+		}
+		return result;
+	}
+
+public:
+	void change_res_ptr(Matrix<double>* ptr) override{
+		res_ptr = ptr;
+	}
+
+	Matrix<double> forward(Matrix<double>& left, Matrix<double>& right) override{
+		if(left.size() != right.size()){
+			throw BadShape("Wrong shapes of matrices. Subtractor, forward");
+		}
+
+		left_ptr = &left;
+		right_ptr = &right;
+
+		Matrix<double> result = subtract(left, right);
+		result.layer_ptr = shared_from_this();
+
+		return result;
+	}
+
+	void backward(const Matrix<double>& grad_other) override{
+		auto& grad_current = *(res_ptr->grad_ptr);
+		left_ptr->backward(grad_current);
+		right_ptr->backward(Multiplier::mulscalar(-1, grad_current));
+	}
+
+	void zero_grad() override{
+		left_ptr->zero_grad();
+		right_ptr->zero_grad();
+	}
+
+	void make_step(double step) override{
+		left_ptr->make_step(step);
+		right_ptr->make_step(step);
+	}
+
+	void break_graph() override{
+		left_ptr->break_graph();
+		right_ptr->break_graph();
+	}
+};
+
+
+class Transposer: public Matrix<double>::Layer{
+private:
+	Matrix<double>* res_ptr;
+	Matrix<double>* input_ptr;
+
+public:
+	Transposer() = default;
+
+	static Matrix<double> transpose(const Matrix<double>& input){
+		Matrix<double> result(input.num_columns(), input.num_rows());
+		for(size_t i = 0; i < input.num_columns(); ++i){
+			for(size_t j = 0; j < input.num_rows(); ++j){
+				result[i][j] = input[j][i];
+			}
+		}
+		return result;
+	}
+
+	Matrix<double> forward(Matrix<double>& input) override {
+		input_ptr = &input;
+		Matrix<double> result = transpose(input);
+		result.layer_ptr = shared_from_this();
+		return result;
+	}
+
+
+	void backward(const Matrix<double>& grad_other) override {
+		auto& grad_current = *(res_ptr->grad_ptr);
+		input_ptr->backward(transpose(grad_current));
+	}
+
+	void zero_grad() override {
+		input_ptr->zero_grad();
+	}
+
+	void make_step(double step) override {
+		input_ptr->make_step(step);
+	}
+
+	void break_graph() override {
+		input_ptr->break_graph();
+	}
+};
 
 
 
@@ -556,12 +678,10 @@ Matrix<Field> operator+(Matrix<Field>& left, Matrix<Field>& right){
 }
 
 
-//wrong!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 template<typename Field>
-auto operator-(Matrix<Field>& left, Matrix<Field>& right){
-	auto _copy = left;
-	_copy -= right;
-	return _copy;
+Matrix<Field> operator-(Matrix<Field>& left, Matrix<Field>& right){
+	std::shared_ptr<Subtractor> subtractor_ptr = std::make_shared<Subtractor>();
+	return subtractor_ptr->forward(left, right);
 }
 
 template<typename Field>

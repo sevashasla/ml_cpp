@@ -7,19 +7,6 @@
 
 template<typename...>
 void f() = delete;
-/*
-class Layer: public std::enable_shared_from_this<Layer>{
-public:
-	Matrix<double>* res_ptr=nullptr;
-	virtual void backward(const Matrix<double>&) = 0;
-	virtual Matrix<double> forward(Matrix<double>&) = 0;
-	virtual void make_step(double) = 0;
-	virtual void zero_grad() = 0;
-	virtual void change_res_ptr(Matrix<double>*) = 0;
-	virtual void break_graph() = 0;
-	virtual ~Layer() = default;
-};
-*/
 
 namespace nn{
 	using nnLayer = Matrix<double>::Layer;
@@ -80,77 +67,6 @@ namespace nn{
 	
 
 
-	class MSELoss: public nnLayer{
-	/*
-		real: N x C
-		pred: N x C
-		let's look at only one
-		real: 1 x C = (real_1, ... , real_C)
-		pred: 1 x C = (real_pred_1, ... , real_pred_C)
-
-		f = (real_1 - real_pred_1) ^ 2 + ... + (real_C - real_pred_C) ^ 2
-		df/dreal_pred_i = 2 * (real_pred_i - real_i)
-		grad_real_pred = 2 * (pred - real)
-	*/
-
-	private:
-		Matrix<double>* real_ptr=nullptr;
-		Matrix<double>* pred_ptr=nullptr;
-		Matrix<double>* res_ptr=nullptr;
-
-		void change_res_ptr(Matrix<double>* ptr){
-			res_ptr = ptr;
-		}
-
-	public:
-		MSELoss() = default;
-		MSELoss(const MSELoss& other) = delete;
-		MSELoss& operator=(const MSELoss& other) = delete;
-		MSELoss(MSELoss&& other) = default;
-		MSELoss& operator=(MSELoss&& other) = default;
-
-		Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
-			if(real.size() != pred.size()){
-				throw BadShape("Wrong sizes. MSELoss, forward");
-			}
-
-			pred_ptr = &pred;
-			real_ptr = &real;
-
-			Matrix<double> result(1, 1, 0, nullptr);
-			result.layer_ptr = shared_from_this();
-			
-
-			for(size_t i = 0; i < real.num_rows(); ++i){
-				for(size_t j = 0; j < real.num_columns(); ++j){
-					result[0][0] += std::pow(real[i][j] - pred[i][j], 2);
-				}
-			}
-			return result;
-		}
-
-		void backward(const Matrix<double>& _not_used=Matrix<double>()) override{
-			//I don't need to change_crad current
-
-			Matrix<double> grad_push(*pred_ptr);
-			grad_push -= *real_ptr;
-			grad_push *= 2;
-
-			pred_ptr->backward(grad_push);
-		}
-
-		void make_step(double step){
-			pred_ptr->make_step(step);
-		}
-
-		void zero_grad(){
-			pred_ptr->zero_grad();
-		}
-
-		void break_graph(){
-			pred_ptr->break_graph();
-		}
-	};
 
 	template<size_t In, size_t Out>
 	class Linear: public nnLayer{
@@ -234,7 +150,7 @@ namespace nn{
 		}
 
 		void make_step(double step){
-			auto grad_b = b.get_gradient(); 	auto grad_w = w.get_gradient();
+			auto grad_b = b.get_grad(); 	auto grad_w = w.get_grad();
 			grad_b *= step; 					grad_w *= step;
 			b -= grad_b; 						w -= grad_w;
 
@@ -309,5 +225,163 @@ namespace nn{
 		~Sequential(){}
 	};
 
+	//Losses
+	class MSELoss: public nnLayer{
+	/*
+		real: N x C
+		pred: N x C
+		let's look at only one
+		real: 1 x C = (real_1, ... , real_C)
+		pred: 1 x C = (real_pred_1, ... , real_pred_C)
+
+		f = (real_1 - real_pred_1) ^ 2 + ... + (real_C - real_pred_C) ^ 2
+		df/dreal_pred_i = 2 * (real_pred_i - real_i)
+		grad_real_pred = 2 * (pred - real)
+	*/
+
+	private:
+		Matrix<double>* real_ptr=nullptr;
+		Matrix<double>* pred_ptr=nullptr;
+		Matrix<double>* res_ptr=nullptr;
+
+		void change_res_ptr(Matrix<double>* ptr){
+			res_ptr = ptr;
+		}
+
+	public:
+		MSELoss() = default;
+		MSELoss(const MSELoss& other) = delete;
+		MSELoss& operator=(const MSELoss& other) = delete;
+		MSELoss(MSELoss&& other) = default;
+		MSELoss& operator=(MSELoss&& other) = default;
+
+		Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
+			if(real.size() != pred.size()){
+				throw BadShape("Wrong sizes. MSELoss, forward");
+			}
+
+			pred_ptr = &pred;
+			real_ptr = &real;
+
+			Matrix<double> result(1, 1, 0, shared_from_this());
+
+			for(size_t i = 0; i < real.num_rows(); ++i){
+				for(size_t j = 0; j < real.num_columns(); ++j){
+					result[0][0] += std::pow(real[i][j] - pred[i][j], 2);
+				}
+			}
+			return result;
+		}
+
+		void backward(const Matrix<double>& _not_used=Matrix<double>()) override{
+			Matrix<double> grad_push(*pred_ptr);
+			grad_push -= *real_ptr;
+			grad_push *= 2;
+
+			pred_ptr->backward(grad_push);
+		}
+
+		void make_step(double step){
+			pred_ptr->make_step(step);
+		}
+
+		void zero_grad(){
+			pred_ptr->zero_grad();
+		}
+
+		void break_graph(){
+			pred_ptr->break_graph();
+			real_ptr->break_graph();
+		}
+
+		~MSELoss() = default;
+	};
+
+	template<size_t Classes>
+	Matrix<bool> OneHot(const Matrix<double>& input){
+		Matrix<bool> result(input.num_rows(), Classes, 0);
+		for(size_t i = 0; i < input.num_rows(); ++i){
+			result[i][input[i][0]] = 1;
+		}
+		return result;
+	}
+
+	template<size_t Classes>
+	class CrossEntrolyLoss: public nnLayer{
+	/*
+		x: 1 x C
+		y: 1 x C
+		p: 1 x C
+	
+		dlog(p_i)/dx_j = d log(e^x_i / sum(e^x_k)) / dx_j = 
+		= dx_i/dx_j - d(log(sum(e^x_k)))/dx_j = 
+		= dx_i/dx_j - 1 / sum(e^x_k) * d(sum(e^x_k))/dx_j = 
+		= (i == j ? 1 : 0) - p_j = (i == j ? 1 - p_j : -p_j)
+		
+		df/dx_i = -(y_1 * (1 - p_1) + y_2 * -p_1 ... + y_C * -p_1) =(!!!) p_1 - y_1
+		so grad_x = p - y
+	*/
+
+	private:
+		Matrix<double>* res_ptr;
+		Matrix<double>* real_ptr;
+		Matrix<double>* pred_ptr;
+		Matrix<double> logits;
+
+	public:
+
+		void change_res_ptr(Matrix<double>* ptr){
+			res_ptr = ptr;
+		}
+
+		Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
+			if(real.size() != pred.size()){
+				throw BadShape("Wrong sizes of matrices. CrossEntrolyLoss, forward");
+			}
+
+			real_ptr = &real;
+			pred_ptr = &pred;
+
+			logits = Matrix<double>(pred.size(), 0.0);
+			for(size_t num = 0; num < pred.num_rows(); ++num){
+				double _sum = 0.0;
+				for(size_t i = 0; i < Classes; ++i){
+					_sum += std::exp(pred[num][i]);
+				}
+
+				for(size_t i = 0; i < Classes; ++i){
+					logits[num][i] = std::exp(pred[num][i]) / _sum;
+				}
+			}
+
+			Matrix<double> result(1, 1, 0.0, shared_from_this());
+
+			for(size_t num = 0; num < pred.num_rows(); ++num){
+				for(size_t i = 0; i < Classes; ++i){
+					result[0][0] += std::log(pred[num][i]) * real[num][i];
+				}
+				result[0][0] *= -1;
+			}
+			return result;
+		}
+
+		void backward(const Matrix<double>& _not_used=Matrix<double>()){
+			Matrix<double> grad_push(logits);
+			grad_push -= *real_ptr;
+			pred_ptr->backward(grad_push);
+		}
+
+		void make_step(double step){
+			pred_ptr->make_step(step);
+		}
+
+		void zero_grad(){
+			pred_ptr->zero_grad();
+		}
+
+		void break_graph(){
+			pred_ptr->break_graph();
+		}
+	};
 }
 
