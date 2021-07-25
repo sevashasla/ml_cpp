@@ -6,11 +6,7 @@
 using std::cin, std::cout, std::vector;
 
 
-
-
 int main(){
-	
-	
 
 	return 0;
 }

@@ -7,7 +7,19 @@
 
 template<typename...>
 void f() = delete;
-
+/*
+class Layer: public std::enable_shared_from_this<Layer>{
+public:
+	Matrix<double>* res_ptr=nullptr;
+	virtual void backward(const Matrix<double>&) = 0;
+	virtual Matrix<double> forward(Matrix<double>&) = 0;
+	virtual void make_step(double) = 0;
+	virtual void zero_grad() = 0;
+	virtual void change_res_ptr(Matrix<double>*) = 0;
+	virtual void break_graph() = 0;
+	virtual ~Layer() = default;
+};
+*/
 
 namespace nn{
 	using nnLayer = Matrix<double>::Layer;
@@ -53,6 +65,14 @@ namespace nn{
 			input_ptr->backward(grad_push);
 		}
 
+		void make_step(double step){
+			input_ptr->make_step(step);
+		}
+
+		void zero_grad(){
+			input_ptr->zero_grad();
+		}
+
 		void break_graph() override{
 			input_ptr->break_graph();
 		}
@@ -90,12 +110,12 @@ namespace nn{
 		MSELoss& operator=(MSELoss&& other) = default;
 
 		Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
-			pred_ptr = &pred;
-			real_ptr = &real;
-
 			if(real.size() != pred.size()){
 				throw BadShape("Wrong sizes. MSELoss, forward");
 			}
+
+			pred_ptr = &pred;
+			real_ptr = &real;
 
 			Matrix<double> result(1, 1, 0, nullptr);
 			result.layer_ptr = shared_from_this();
@@ -244,24 +264,22 @@ namespace nn{
 		std::list<Matrix<double>> outputs;
 
 		template<typename... LLayers>
-		void PushBackMany(LLayers&&... layers){}
+		void Add(LLayers&&... layers){}
 
 		template<typename Head, typename... LLayers>
-		void PushBackMany(Head&& head, LLayers&&... layers){
-			seq.push_back(std::make_shared< std::remove_reference_t<Head> >(std::forward<Head>(head)));
-			PushBackMany(std::forward<LLayers>(layers)...);
+		void Add(){
+			seq.push_back(std::make_shared<Head>());
+			Add<LLayers...>();
 		}
 
 	public:
 		static const size_t length = sizeof...(Layers);
-		Sequential(): Sequential(Layers()...){}
 
-		template<typename... LLayers>
-		Sequential(LLayers&&... layers){
-			PushBackMany(std::forward<LLayers>(layers)...);
+		Sequential(){
+			Add<Layers...>();
 		}
 
-		Matrix<double> forward(const Matrix<double>& input) {
+		Matrix<double> forward(const Matrix<double>& input){
 			outputs.clear();
 			outputs.push_back(input);
 			for(auto& layer_ptr: seq){
@@ -282,6 +300,10 @@ namespace nn{
 
 		void zero_grad(){
 			seq.back()->zero_grad();
+		}
+
+		void break_graph(){
+			seq.back()->break_graph();
 		}
 
 		~Sequential(){}

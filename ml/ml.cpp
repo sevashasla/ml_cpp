@@ -4,7 +4,13 @@
 
 using std::cin, std::cout;
 int main(){
-	std::shared_ptr<nn::Linear<1, 1>> linear_ptr = std::make_shared<nn::Linear<1, 1>>();
+	
+	nn::Sequential<
+		nn::Linear<1, 4>,
+		nn::ReLU,
+		nn::Linear<4, 1>
+	> seq;
+
 	std::shared_ptr<nn::MSELoss> loss_fn_ptr = std::make_shared<nn::MSELoss>();
 
 	std::vector<std::vector<double>> xv({
@@ -47,9 +53,9 @@ int main(){
 	Matrix<double> x(xv);
 	Matrix<double> y(yv);
 
-	int num_epoch = 10000;
+	int num_epoch = 100'000;
 	while(num_epoch){
-		Matrix<double> out = linear_ptr->forward(x);
+		Matrix<double> out = seq.forward(x);
 		Matrix<double> loss = loss_fn_ptr->forward(y, out);
 		
 		loss.backward(Matrix<double>());
@@ -58,16 +64,15 @@ int main(){
 		loss.break_graph();
 
 		if(num_epoch % 50 == 0){
-			cout << loss << "\n";
+			cout << loss;
 		}
 		--num_epoch;
 	}
 
-	Matrix<double> out = linear_ptr->forward(x);
+	Matrix<double> out = seq.forward(x);
 	for(size_t i = 0; i < out.num_rows(); ++i){
 		cout << y[i][0] << " " << out[i][0] << "\n";
 	}
-	
 
 	return 0;
 }

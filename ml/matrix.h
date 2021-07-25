@@ -39,6 +39,11 @@ struct BadShape: public std::exception{
 class Multiplier;
 class Adder;
 
+template<typename T>
+bool equal(const T& left, const T& right, double epsilon=1e-3) {
+	return (-epsilon <= right - left) && (right - left <= epsilon);
+}
+
 template<typename Field=double>
 class Matrix{
 	template<typename FField>
@@ -53,7 +58,7 @@ public: //BAD?
 		Matrix<double>* res_ptr=nullptr;
 		virtual void backward(const Matrix<double>&) = 0;
 
-		//I have different with different number of input arguments
+		//I have different methods with different number of input arguments
 		virtual Matrix<double> forward(Matrix<double>&, Matrix<double>&){
 			throw std::runtime_error("One tries to call forward(Matrix<double>&, Matrix<double>&)");
 			return Matrix<double>();
@@ -73,7 +78,6 @@ public: //BAD?
 private:
 	size_t __m;
 	size_t __n;
-	Field epsilon = 1e-3;
 	std::vector<std::vector<Field>> matrix;
 
 	// second = first * coeff + second
@@ -87,10 +91,6 @@ private:
 		for(size_t k = 0; k < __m; ++k){
 			matrix[k][second] += coeff * matrix[k][first];
 		}
-	}
-
-	bool equal(const Field& left, const Field& right) const{
-		return (-epsilon <= right - left) && (right - left <= epsilon);
 	}
 
 
@@ -132,15 +132,12 @@ public:
 	Matrix(size_t m, size_t n, const Field& f, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), 
 	matrix(__m, std::vector<Field>(__n, f)), layer_ptr(layer_ptr){}
 
-	//STRANGE WITH GRAD_PTR?
 	Matrix(const Matrix& other): __m(other.__m), __n(other.__n), 
-	epsilon(epsilon), matrix(other.matrix), layer_ptr(other.layer_ptr), grad_ptr(other.grad_ptr){}
-
+	matrix(other.matrix), layer_ptr(other.layer_ptr), grad_ptr(other.grad_ptr){}
 
 	Matrix(Matrix&& other): __m(other.__m), __n(other.__n), 
-	epsilon(epsilon), matrix(std::move(other.matrix)), layer_ptr(std::move(other.layer_ptr)), grad_ptr(std::move(other.grad_ptr)){
-		__m = 0;
-		__n = 0;
+	matrix(std::move(other.matrix)), layer_ptr(std::move(other.layer_ptr)), grad_ptr(std::move(other.grad_ptr)){
+		other.__m = other.__n = 0;
 	}
 
 	Matrix(const std::vector<std::vector<Field>>& matrix_other): __m(matrix_other.size()), 
