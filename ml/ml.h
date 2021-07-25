@@ -101,7 +101,11 @@ namespace nn{
 		}
 
 	public:
-		Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
+		//TODO
+		// Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
+		Linear(): w(Matrix<double>(In, Out, 1, nullptr)), b(Matrix<double>(1, Out, 1, nullptr)){}
+
+
 		Linear(const Linear& other) = delete;
 		Linear& operator=(const Linear& other) = delete;
 
@@ -114,7 +118,9 @@ namespace nn{
 			Matrix<double> result = input;
 			result.layer_ptr.reset();
 			result *= w;
-			for(size_t num = 0; num < input.num_columns(); ++num){
+
+			//	+= b
+			for(size_t num = 0; num < input.num_rows(); ++num){
 				for(size_t i = 0; i < Out; ++i){
 					result[num][i] += b[0][i];
 				}
@@ -137,8 +143,8 @@ namespace nn{
 			b.layer_ptr.reset();
 			w.layer_ptr.reset();
 
-			b.backward(grad_b);
 			w.backward(grad_w);
+			b.backward(grad_b);
 
 			input_ptr->backward(grad_push);
 		}
@@ -307,7 +313,30 @@ namespace nn{
 	}
 
 	template<size_t Classes>
-	class CrossEntrolyLoss: public nnLayer{
+	Matrix<size_t> predict(const Matrix<double>& input){
+		Matrix<size_t> result(input.num_rows(), 1, 0);
+		for(size_t num = 0; num < input.num_rows(); ++num){
+			size_t index_max = 0;
+			for(size_t i = 0; i < Classes; ++i){
+				if(input[num][index_max] < input[num][i]){
+					index_max = i;
+				}
+			}
+			result[num][0] = index_max;
+		}
+		return result;
+	}
+
+	Matrix<double> accuracy(const Matrix<double>& real, const Matrix<double>& predicted_classes){
+		Matrix<double> result(1, 1, 0.0);
+		result[0][0] = (real == predicted_classes).sum();
+		result[0][0] /= real.num_rows();
+		return result;
+	}
+
+
+	template<size_t Classes>
+	class CrossEntropyLoss: public nnLayer{
 	/*
 		x: 1 x C
 		y: 1 x C
@@ -330,13 +359,19 @@ namespace nn{
 
 	public:
 
+		CrossEntropyLoss() = default;
+
 		void change_res_ptr(Matrix<double>* ptr){
 			res_ptr = ptr;
 		}
 
 		Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
 			if(real.size() != pred.size()){
-				throw BadShape("Wrong sizes of matrices. CrossEntrolyLoss, forward");
+				throw BadShape("Wrong sizes of matrices. CrossEntropyLoss, forward");
+			}
+
+			if(real.num_columns() != Classes){
+				throw BadShape("Wrong size of matrix, should be N x Classes. CrossEntropyLoss, forward");
 			}
 
 			real_ptr = &real;
@@ -358,7 +393,7 @@ namespace nn{
 
 			for(size_t num = 0; num < pred.num_rows(); ++num){
 				for(size_t i = 0; i < Classes; ++i){
-					result[0][0] += std::log(pred[num][i]) * real[num][i];
+					result[0][0] += std::log(logits[num][i]) * real[num][i];
 				}
 				result[0][0] *= -1;
 			}
