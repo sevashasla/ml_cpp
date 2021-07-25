@@ -43,7 +43,7 @@ namespace nn{
 
 		void backward(const Matrix<double>& grad_other) override{
 			auto& grad_current = *(res_ptr->grad_ptr);
-			grad_current += grad_other;
+			
 			Matrix<double> grad_push(grad_other);
 			for(size_t i = 0; i < grad_push.num_rows(); ++i){
 				for(size_t j = 0; j < grad_push.num_columns(); ++j){
@@ -51,6 +51,10 @@ namespace nn{
 				}
 			}
 			input_ptr->backward(grad_push);
+		}
+
+		void break_graph() override{
+			input_ptr->break_graph();
 		}
 	};
 	
@@ -121,6 +125,10 @@ namespace nn{
 
 		void zero_grad(){
 			pred_ptr->zero_grad();
+		}
+
+		void break_graph(){
+			pred_ptr->break_graph();
 		}
 	};
 
@@ -211,6 +219,18 @@ namespace nn{
 			b -= grad_b; 						w -= grad_w;
 
 			input_ptr->make_step(step);
+		}
+
+		void break_graph(){
+			input_ptr->break_graph();
+		}
+
+		Matrix<double> get_weight() const{
+			return w;
+		}
+
+		Matrix<double> get_bias() const{
+			return b;
 		}
 
 		~Linear() = default;

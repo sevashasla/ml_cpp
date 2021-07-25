@@ -65,9 +65,8 @@ public: //BAD?
 		virtual void make_step(double) = 0;
 		virtual void zero_grad() = 0;
 		virtual void change_res_ptr(Matrix<double>*) = 0;
-		virtual ~Layer(){
-			cout << "~Layer()\n";
-		}
+		virtual void break_graph() = 0;
+		virtual ~Layer() = default;
 	};
 
 
@@ -97,7 +96,7 @@ private:
 
 public:
 	std::shared_ptr<Layer> layer_ptr;
-	Matrix<Field>* grad_ptr=nullptr;
+	std::shared_ptr<Matrix<Field>> grad_ptr;
 
 	Matrix(): Matrix(0, 0, nullptr){}
 	Matrix(size_t m, size_t n, std::shared_ptr<Layer> layer_ptr=nullptr): __m(m), __n(n), matrix(__m, std::vector<Field>(__n, 0)), layer_ptr(layer_ptr){
@@ -139,9 +138,7 @@ public:
 
 
 	Matrix(Matrix&& other): __m(other.__m), __n(other.__n), 
-	epsilon(epsilon), matrix(std::move(other.matrix)), layer_ptr(std::move(other.layer_ptr)), grad_ptr(other.grad_ptr){
-		other.grad_ptr = nullptr;
-		//Maybe not good!!!
+	epsilon(epsilon), matrix(std::move(other.matrix)), layer_ptr(std::move(other.layer_ptr)), grad_ptr(std::move(other.grad_ptr)){
 		__m = 0;
 		__n = 0;
 	}
@@ -165,6 +162,7 @@ public:
 		__n = other.__n;
 		matrix = std::move(other.matrix);
 		layer_ptr = std::move(other.layer_ptr);
+		grad_ptr = std::move(other.grad_ptr);
 		other.__m = other.__n = 0;
 		return *this;
 	}
@@ -294,12 +292,14 @@ public:
 		return res;
 	}
 
-	void backward(const Matrix<Field>& grad_other) {
-		if(layer_ptr){
-			if(!grad_ptr){
-				grad_ptr = new Matrix<Field>(grad_other.size(), 0.0);
-			}
-			
+	void backward(const Matrix<Field>& grad_other){
+		if(!grad_ptr){
+			grad_ptr = std::make_shared<Matrix<Field>>(grad_other.size(), 0.0);
+		}
+
+		*grad_ptr += grad_other;
+
+		if(layer_ptr){	
 			//	I need to do change_res_ptr due to 
 			//	occurs calls of copy constructors and I 
 			//	don't have original matrix
@@ -307,23 +307,29 @@ public:
 
 			//	call backward of the layer. It knows how to count grad
 			layer_ptr->backward(grad_other);
+		}
+	}
 
-			//	and here I need to delete layer, because on every iteration
-			//	I will create graph again
-			layer_ptr.reset();
-
-		} else {
-			if(!grad_ptr){
-
-				//It means, that this is the leaf
-				grad_ptr = new Matrix<Field>(grad_other);	
-			}
+	void backward(){
+		if(!grad_ptr){
+			grad_ptr = std::make_shared<Matrix<Field>>();
+		}
+		if(layer_ptr){
+			layer_ptr->backward();
 		}
 	}
 
 	void make_step(double step){
 		if(layer_ptr){
 			layer_ptr->make_step(step);
+		}
+	}
+
+	void break_graph(){
+		//by recursion I will break the graph
+		if(layer_ptr){
+			layer_ptr->break_graph();
+			layer_ptr.reset();
 		}
 	}
 
@@ -341,10 +347,7 @@ public:
 		return *grad_ptr;
 	}
 
-	~Matrix(){
-		cout << "~Matrix()\n";
-		delete grad_ptr;
-	}
+	~Matrix() = default;
 };
 
 
@@ -429,7 +432,6 @@ public:
 
 	void backward(const Matrix<double>& grad_other) override{
 		auto& grad_current = *(res_ptr->grad_ptr);
-		grad_current += grad_other;
 
 		left_ptr->backward(mulscalar(1.0 / right_ptr->num_columns(), matmul(grad_current, right_ptr->transpose())));
 		right_ptr->backward(mulscalar(1.0 / left_ptr->num_rows(), matmul(left_ptr->transpose(), grad_current)));
@@ -445,9 +447,12 @@ public:
 		right_ptr->make_step(step);
 	}
 
-	~Multiplier(){
-		cout << "~Multiplier()\n";
+	void break_graph(){
+		left_ptr->break_graph();
+		right_ptr->break_graph();
 	}
+
+	~Multiplier() = default;
 };
 
 
@@ -508,7 +513,7 @@ public:
 
 	void backward(const Matrix<double>& grad_other) override{
 		auto& grad_current = *(res_ptr->grad_ptr);
-		grad_current += grad_other;
+
 		left_ptr->backward(grad_current);
 		right_ptr->backward(grad_current);
 	}
@@ -523,9 +528,12 @@ public:
 		right_ptr->make_step(step);
 	}
 
-	~Adder(){
-		cout << "~Adder()\n";
+	void break_graph(){
+		left_ptr->break_graph();
+		right_ptr->break_graph();
 	}
+
+	~Adder() = default;
 };
 
 

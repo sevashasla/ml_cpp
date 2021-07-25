@@ -47,17 +47,25 @@ int main(){
 	Matrix<double> x(xv);
 	Matrix<double> y(yv);
 
-	int num_epoch = 1000;
+	int num_epoch = 10000;
 	while(num_epoch){
-		Matrix<double> out1 = linear_ptr->forward(x);
-		Matrix<double> loss = loss_fn_ptr->forward(y, out1);
-		loss_fn_ptr->backward();
-		loss_fn_ptr->make_step(1e-3);
-		loss_fn_ptr->zero_grad();
+		Matrix<double> out = linear_ptr->forward(x);
+		Matrix<double> loss = loss_fn_ptr->forward(y, out);
+		
+		loss.backward(Matrix<double>());
+		loss.make_step(1e-3);
+		loss.zero_grad();
+		loss.break_graph();
+
 		if(num_epoch % 50 == 0){
 			cout << loss << "\n";
 		}
 		--num_epoch;
+	}
+
+	Matrix<double> out = linear_ptr->forward(x);
+	for(size_t i = 0; i < out.num_rows(); ++i){
+		cout << y[i][0] << " " << out[i][0] << "\n";
 	}
 	
 
