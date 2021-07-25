@@ -62,7 +62,8 @@ public: //BAD?
 			throw std::runtime_error("One tries to call forward(Matrix<double>&)");
 			return Matrix<double>();
 		}
-
+		virtual void make_step(double) = 0;
+		virtual void zero_grad() = 0;
 		virtual void change_res_ptr(Matrix<double>*) = 0;
 		virtual ~Layer(){
 			cout << "~Layer()\n";
@@ -320,12 +321,23 @@ public:
 		}
 	}
 
-	void zero_grad(){
-		grad_ptr->make_zero();//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		//and call zero_grad of other
+	void make_step(double step){
+		if(layer_ptr){
+			layer_ptr->make_step(step);
+		}
 	}
 
-	const Matrix<Field>& get_grad() const{
+	void zero_grad(){
+		if(grad_ptr){
+			grad_ptr->make_zero();
+		}
+
+		if(layer_ptr){
+			layer_ptr->zero_grad();
+		}
+	}
+
+	const Matrix<Field>& get_gradient() const{
 		return *grad_ptr;
 	}
 
@@ -423,6 +435,16 @@ public:
 		right_ptr->backward(mulscalar(1.0 / left_ptr->num_rows(), matmul(left_ptr->transpose(), grad_current)));
 	}
 
+	void zero_grad(){
+		left_ptr->zero_grad();
+		right_ptr->zero_grad();
+	}
+
+	void make_step(double step) override{
+		left_ptr->make_step(step);
+		right_ptr->make_step(step);
+	}
+
 	~Multiplier(){
 		cout << "~Multiplier()\n";
 	}
@@ -489,6 +511,16 @@ public:
 		grad_current += grad_other;
 		left_ptr->backward(grad_current);
 		right_ptr->backward(grad_current);
+	}
+
+	void zero_grad(){
+		left_ptr->zero_grad();
+		right_ptr->zero_grad();
+	}
+
+	void make_step(double step) override{
+		left_ptr->make_step(step);
+		right_ptr->make_step(step);
 	}
 
 	~Adder(){

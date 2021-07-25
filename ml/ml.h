@@ -12,9 +12,8 @@ void f() = delete;
 namespace nn{
 	using nnLayer = Matrix<double>::Layer;
 	
-	template<size_t N>
-	class ReLU: nnLayer{	
-	
+
+	class ReLU: public nnLayer{
 	private:
 		Matrix<double>* res_ptr=nullptr;
 		Matrix<double>* input_ptr=nullptr;
@@ -29,7 +28,7 @@ namespace nn{
 
 		Matrix<double> forward(Matrix<double>& input) override{
 			input_ptr = &input;
-			mask = Matrix<double>(input.size(), 0, nullptr);
+			mask = Matrix<bool>(input.size(), 0, nullptr);
 			
 			Matrix<double> result = input;
 			for(size_t i = 0; i < result.num_rows(); ++i){
@@ -57,7 +56,7 @@ namespace nn{
 	
 
 
-	class MSELoss: nnLayer{
+	class MSELoss: public nnLayer{
 	/*
 		real: N x C
 		pred: N x C
@@ -69,10 +68,6 @@ namespace nn{
 		df/dreal_pred_i = 2 * (real_pred_i - real_i)
 		grad_real_pred = 2 * (pred - real)
 	*/
-		MSELoss(const MSELoss& other) = delete;
-		MSELoss& operator=(const MSELoss& other) = delete;
-		MSELoss(MSELoss&& other) = default;
-		MSELoss& operator=(MSELoss&& other) = default;
 
 	private:
 		Matrix<double>* real_ptr=nullptr;
@@ -84,7 +79,13 @@ namespace nn{
 		}
 
 	public:
-	Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
+		MSELoss() = default;
+		MSELoss(const MSELoss& other) = delete;
+		MSELoss& operator=(const MSELoss& other) = delete;
+		MSELoss(MSELoss&& other) = default;
+		MSELoss& operator=(MSELoss&& other) = default;
+
+		Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
 			pred_ptr = &pred;
 			real_ptr = &real;
 
@@ -94,6 +95,7 @@ namespace nn{
 
 			Matrix<double> result(1, 1, 0, nullptr);
 			result.layer_ptr = shared_from_this();
+			
 
 			for(size_t i = 0; i < real.num_rows(); ++i){
 				for(size_t j = 0; j < real.num_columns(); ++j){
@@ -111,6 +113,14 @@ namespace nn{
 			grad_push *= 2;
 
 			pred_ptr->backward(grad_push);
+		}
+
+		void make_step(double step){
+			pred_ptr->make_step(step);
+		}
+
+		void zero_grad(){
+			pred_ptr->zero_grad();
 		}
 	};
 
@@ -157,8 +167,9 @@ namespace nn{
 		Matrix<double> forward(Matrix<double>& input) override{
 			input_ptr = &input;
 
-			Matrix<double> result = w;
-			result *= input;
+			Matrix<double> result = input;
+			result.layer_ptr.reset();
+			result *= w;
 			for(size_t num = 0; num < input.num_columns(); ++num){
 				for(size_t i = 0; i < Out; ++i){
 					result[num][i] += b[0][i];
@@ -186,6 +197,20 @@ namespace nn{
 			w.backward(grad_w);
 
 			input_ptr->backward(grad_push);
+		}
+
+		void zero_grad(){
+			w.zero_grad();
+			b.zero_grad();
+			input_ptr->zero_grad();
+		}
+
+		void make_step(double step){
+			auto grad_b = b.get_gradient(); 	auto grad_w = w.get_gradient();
+			grad_b *= step; 					grad_w *= step;
+			b -= grad_b; 						w -= grad_w;
+
+			input_ptr->make_step(step);
 		}
 
 		~Linear() = default;
@@ -229,6 +254,14 @@ namespace nn{
 
 		void backward(Matrix<double>& grad_other){
 			seq.back()->backward(grad_other);
+		}
+
+		void make_step(double step){
+			seq.back()->make_step(step);
+		}
+
+		void zero_grad(){
+			seq.back()->zero_grad();
 		}
 
 		~Sequential(){}
