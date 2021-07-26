@@ -1,3 +1,12 @@
+//TODO
+/*
+	1) Do I need grad_other in backward in Layer?
+	2) I can make input_ptr, left_ptr, right_ptr in Layer
+	so I don't need to copy-paste code
+	
+*/
+
+
 #pragma once
 
 #include "matrix.h"
@@ -43,7 +52,7 @@ namespace nn{
 		void backward(const Matrix<double>& grad_other) override{
 			auto& grad_current = *(res_ptr->grad_ptr);
 			
-			Matrix<double> grad_push(grad_other);
+			Matrix<double> grad_push(grad_current);
 			for(size_t i = 0; i < grad_push.num_rows(); ++i){
 				for(size_t j = 0; j < grad_push.num_columns(); ++j){
 					grad_push[i][j] *= mask[i][j];
@@ -66,6 +75,114 @@ namespace nn{
 	};
 	
 
+	class LeakyReLU: public nnLayer{
+		private:
+		Matrix<double>* res_ptr=nullptr;
+		Matrix<double>* input_ptr=nullptr;
+		Matrix<double> mask;
+		double alpha=0.0;
+
+		virtual void change_res_ptr(Matrix<double>* ptr) {
+			res_ptr = ptr;
+		}
+
+	public:
+		LeakyReLU(double alpha=1e-2): alpha(alpha){}
+
+		Matrix<double> forward(Matrix<double>& input) override{
+			input_ptr = &input;
+			mask = Matrix<double>(input.size(), 0, nullptr);
+			
+			Matrix<double> result = input;
+			for(size_t i = 0; i < result.num_rows(); ++i){
+				for(size_t j = 0; j < result.num_columns(); ++j){
+					result[i][j] = std::max(result[i][j], alpha * result[i][j]);
+					mask[i][j] = (result[i][j] > 0.0 ? 1 : alpha);
+				}
+			}
+			result.layer_ptr = shared_from_this();
+			return result;
+		}
+
+		void backward(const Matrix<double>& grad_other) override{
+			auto& grad_current = *(res_ptr->grad_ptr);
+			
+			Matrix<double> grad_push(grad_current);
+			for(size_t i = 0; i < grad_push.num_rows(); ++i){
+				for(size_t j = 0; j < grad_push.num_columns(); ++j){
+					grad_push[i][j] *= mask[i][j];
+				}
+			}
+			input_ptr->backward(grad_push);
+		}
+
+		void make_step(double step){
+			input_ptr->make_step(step);
+		}
+
+		void zero_grad(){
+			input_ptr->zero_grad();
+		}
+
+		void break_graph() override{
+			input_ptr->break_graph();
+		}
+	};
+
+
+	class Sigmoid: public nnLayer{
+	/*
+		y = 1/(1 + e^-x)
+		df/dx = d(1/(1 + e^-x))/dx = -1/(1 + e^-x)^2 * -e^-x = 
+		= e^-x/(1 + e^-x)^2 = y(1 - y)
+		I have df/dy => df/dx = df/dy * dy/dx
+	*/
+
+	private:
+		Matrix<double>* res_ptr;
+		Matrix<double>* input_ptr;
+
+	public:
+		void change_res_ptr(Matrix<double>* ptr){ res_ptr = ptr; }
+
+		Matrix<double> forward(Matrix<double>& input){
+			input_ptr = &input;
+
+			Matrix<double> result(input.size(), 0.0, nullptr);
+			for(size_t num = 0; num < input.num_rows(); ++num){
+				for(size_t i = 0; i < input.num_columns(); ++i){
+					result[num][i] = 1.0 / (1.0 + std::exp(-input[num][i]));
+				}
+			}
+			result.layer_ptr = shared_from_this();
+			return result;
+		}
+
+
+		void backward(const Matrix<double>& grad_other){
+			auto& grad_current = *(res_ptr->grad_ptr);
+			Matrix<double> grad_push(grad_current.size(), 0.0);
+			for(size_t num = 0; num < grad_current.num_rows(); ++num){
+				for(size_t i = 0; i < grad_current.num_columns(); ++i){
+					auto& res_curr = (*res_ptr)[num][i];
+					grad_push[num][i] = grad_current[num][i] * (res_curr) * (1 - res_curr);
+				}
+			}
+			input_ptr->backward(grad_push);
+		}
+
+		void zero_grad(){
+			input_ptr->zero_grad();
+		}
+
+		void make_step(double step){
+			input_ptr->make_step(step);
+		}
+
+		void break_graph(){
+			input_ptr->break_graph();
+		}
+	};
 
 
 	template<size_t In, size_t Out>
@@ -101,10 +218,7 @@ namespace nn{
 		}
 
 	public:
-		//TODO
-		// Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
-		Linear(): w(Matrix<double>(In, Out, 1, nullptr)), b(Matrix<double>(1, Out, 1, nullptr)){}
-
+		Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
 
 		Linear(const Linear& other) = delete;
 		Linear& operator=(const Linear& other) = delete;
@@ -230,6 +344,7 @@ namespace nn{
 
 		~Sequential(){}
 	};
+
 
 	//Losses
 	class MSELoss: public nnLayer{

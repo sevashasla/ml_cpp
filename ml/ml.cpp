@@ -4,15 +4,16 @@
 
 using std::cin, std::cout;
 int main(){
-	// nn::Sequential<
-	// 	nn::Linear<1, 2>
-	// > seq;
+	nn::Sequential<
+		nn::Linear<1, 2>
+	> seq1;
 
-	//TODO
-	std::shared_ptr<nn::Linear<1, 2>> layer_ptr = std::make_shared<nn::Linear<1, 2>>();
+	nn::Sequential<
+		nn::Linear<1, 2>
+	> seq2;
 
 	std::shared_ptr<nn::nnLayer> loss_fn_ptr = std::make_shared<nn::CrossEntropyLoss<2>>();
-
+	
 	std::vector<std::vector<double>> xv({
 		{-11.092624349394143},  {-10.4448410684391},  {-9.811151112664817},  {-9.837675434205272},  
 		{-10.668374789942131},  {-1.6173461592329268},  {-10.303916516281474},  {-0.794152276623841},  
@@ -31,6 +32,7 @@ int main(){
 		{-0.5257904636130821},  {-1.9274479855745354},  {-0.757969185355724},  {-9.799412783526332},  
 		{-9.767617768288718},  {-1.4686444212810534},  {-1.3739725806942609},  {-2.7768702545837973}
 	});
+
 	std::vector<std::vector<double>> yv({
 		{1}, {1}, {1}, {1}, 
 		{1}, {0}, {1}, {0}, 
@@ -50,17 +52,15 @@ int main(){
 		{1}, {0}, {0}, {0}
 	});
 
-	// std::vector<std::vector<double>> xv({{-11.092624349394143}});
-
-	// std::vector<std::vector<double>> yv({{1}});
-
 	Matrix<double> x(xv);
 	Matrix<double> y_fresh(yv);
 	Matrix<double> y = static_cast<Matrix<double>>(nn::OneHot<2>(y_fresh));
 
 	int num_epoch = 3000;
 	while(num_epoch){
-		Matrix<double> out = layer_ptr->forward(x);
+		Matrix<double> out1 = seq1.forward(x);
+		Matrix<double> out2 = seq2.forward(x);
+		Matrix<double> out = out1 + out2;
 		Matrix<double> loss = loss_fn_ptr->forward(y, out);
 		loss.backward(Matrix<double>());
 
@@ -74,16 +74,14 @@ int main(){
 		--num_epoch;
 	}
 
-	cout << layer_ptr->get_weight();
-	cout << layer_ptr->get_bias();
-	cout << "\n";
 
-	Matrix<double> out = layer_ptr->forward(x);
+	Matrix<double> out1 = seq1.forward(x);
+	Matrix<double> out2 = seq2.forward(x);
+	Matrix<double> out = out1 + out2;
 
 	Matrix<double> pred_classes = static_cast<Matrix<double>>(nn::predict<2>(out));
 
 	cout << nn::accuracy(y_fresh, pred_classes);
-
 	return 0;
 }
 
