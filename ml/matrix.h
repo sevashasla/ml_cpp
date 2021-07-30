@@ -21,10 +21,6 @@ struct BadShape: public std::exception{
 	}
 };
 
-
-class Multiplier;
-class Adder;
-
 template<typename T>
 bool equal(const T& left, const T& right, double epsilon=1e-3) {
 	return (-epsilon <= right - left) && (right - left <= epsilon);
@@ -48,7 +44,7 @@ public:
 		Matrix<double>* res_ptr=nullptr;
 
 		//	For pushing gradient deeper
-		virtual void backward(const Matrix<double>&) = 0;
+		virtual void backward() = 0;
 
 		//	I have different methods with different number of input arguments
 		virtual Matrix<double> forward(Matrix<double>&, Matrix<double>&){
@@ -63,10 +59,6 @@ public:
 		//	For change weights
 		virtual void make_step(double) = 0;
 		virtual void zero_grad() = 0;
-
-		//	There are no virtual variables, but I need to change
-		//	variable of the lower class
-		virtual void change_res_ptr(Matrix<double>*) = 0;
 
 		//	For breaking graph because on every iteration it has to been builded again
 		virtual void break_graph() = 0;
@@ -237,6 +229,7 @@ public:
 				matrix[i][j] += other[i][j];
 			}
 		}
+
 		return *this;
 	}
 
@@ -322,10 +315,10 @@ public:
 			//	I need to do change_res_ptr due to 
 			//	occurs calls of copy constructors and I 
 			//	don't have original matrix
-			layer_ptr->change_res_ptr(this);
+			layer_ptr->res_ptr = this;
 
 			//	call backward of the layer. It knows how to count grad
-			layer_ptr->backward(grad_other);
+			layer_ptr->backward();
 		}
 	}
 
@@ -335,7 +328,7 @@ public:
 			grad_ptr = std::make_shared<Matrix<Field>>();
 		}
 		if(layer_ptr){
-			layer_ptr->change_res_ptr(this);			
+			layer_ptr->res_ptr = this;
 			layer_ptr->backward();
 		}
 	}
@@ -375,7 +368,6 @@ public:
 };
 
 
-//May be template?
 class Multiplier: public Matrix<double>::Layer{
 /*
 	A: M x N
@@ -395,15 +387,25 @@ class Multiplier: public Matrix<double>::Layer{
 	grad_B = 1/M * A^T * grad_f
 */
 
+
+/*
+	[A] = M x N
+	[B] = N x K
+	[C] = M x K, C = A * B
+				(df/dC_{1 1}, ... , df/dC_{1 k})
+	grad_C = 				...
+				(df/dC_{M 1}, ... , df/dC_{m k})
+	df/dA_{p q} = sum(df/dC_{i j} * dC_{i j} / dA_{p q}),
+	but C_{i j} = sum(A_{i k} * B_{k j})
+	df/dA_{1 1} = sum(df/dC_{1 i} * dC_{1 i}/ dA_{1 1}) = sum(df/dC_{1 i} * B_{1 i})
+	so 
+	grad_A = grad_C * B^T
+	grad_B = A^T * grad_C
+*/
+
 private:
 	Matrix<double>* left_ptr;
 	Matrix<double>* right_ptr;
-	Matrix<double>* res_ptr;
-
-	virtual void change_res_ptr(Matrix<double>* ptr) {
-		res_ptr = ptr;
-	}
-
 
 public:
 	Multiplier(){}
@@ -453,13 +455,13 @@ public:
 		return result;
 	}
 
-	void backward(const Matrix<double>& grad_other) override{
+	void backward() override{
 		auto& grad_current = *(res_ptr->grad_ptr);
 
-		left_ptr->backward(mulscalar(1.0 / right_ptr->num_columns(), matmul(grad_current, right_ptr->transpose())));
-		right_ptr->backward(mulscalar(1.0 / left_ptr->num_rows(), matmul(left_ptr->transpose(), grad_current)));
+		left_ptr->backward(matmul(grad_current, right_ptr->transpose()));
+		right_ptr->backward(matmul(left_ptr->transpose(), grad_current));
 	}
-
+	
 	void zero_grad(){
 		left_ptr->zero_grad();
 		right_ptr->zero_grad();
@@ -498,11 +500,6 @@ class Adder: public Matrix<double>::Layer{
 private:
 	Matrix<double>* left_ptr=nullptr;
 	Matrix<double>* right_ptr=nullptr;
-	Matrix<double>* res_ptr=nullptr;
-
-	virtual void change_res_ptr(Matrix<double>* ptr){
-		res_ptr = ptr; 
-	}
 
 	static Matrix<double> add(Matrix<double>& left, Matrix<double>& right){
 		Matrix<double> result = left;
@@ -534,7 +531,7 @@ public:
 		return result;
 	}
 
-	void backward(const Matrix<double>& grad_other) override{
+	void backward() override{
 		auto& grad_current = *(res_ptr->grad_ptr);
 
 		left_ptr->backward(grad_current);
@@ -562,7 +559,6 @@ public:
 
 class Subtractor: public Matrix<double>::Layer{
 private:
-	Matrix<double>* res_ptr;
 	Matrix<double>* left_ptr;
 	Matrix<double>* right_ptr;
 
@@ -577,9 +573,6 @@ private:
 	}
 
 public:
-	void change_res_ptr(Matrix<double>* ptr) override{
-		res_ptr = ptr;
-	}
 
 	Matrix<double> forward(Matrix<double>& left, Matrix<double>& right) override{
 		if(left.size() != right.size()){
@@ -595,7 +588,7 @@ public:
 		return result;
 	}
 
-	void backward(const Matrix<double>& grad_other) override{
+	void backward() override{
 		auto& grad_current = *(res_ptr->grad_ptr);
 		left_ptr->backward(grad_current);
 		right_ptr->backward(Multiplier::mulscalar(-1, grad_current));
@@ -644,7 +637,7 @@ public:
 	}
 
 
-	void backward(const Matrix<double>& grad_other) override {
+	void backward() override {
 		auto& grad_current = *(res_ptr->grad_ptr);
 		input_ptr->backward(transpose(grad_current));
 	}

@@ -1,9 +1,17 @@
+/*
+	let f = f(y_1, ... , y_k)
+	y_1 = g_1(x), ... , y_k = g_k(x)
+	d(f o g)(a) = df(g(a)) o dg(a) = D_f(g(a)) * D_g(a) - two matrices
+	so df/dx = sum(df/dy_i * dy_i/dx)
+*/
+
+
 //TODO
 /*
 	1) Do I need grad_other in backward in Layer?
 	2) I can make input_ptr, left_ptr, right_ptr in Layer
 	so I don't need to copy-paste code
-	
+
 */
 
 
@@ -23,13 +31,8 @@ namespace nn{
 
 	class ReLU: public nnLayer{
 	private:
-		Matrix<double>* res_ptr=nullptr;
 		Matrix<double>* input_ptr=nullptr;
 		Matrix<bool> mask;
-
-		virtual void change_res_ptr(Matrix<double>* ptr) {
-			res_ptr = ptr;
-		}
 
 	public:
 		ReLU() = default;
@@ -49,7 +52,7 @@ namespace nn{
 			return result;
 		}
 
-		void backward(const Matrix<double>& grad_other) override{
+		void backward() override{
 			auto& grad_current = *(res_ptr->grad_ptr);
 			
 			Matrix<double> grad_push(grad_current);
@@ -77,14 +80,9 @@ namespace nn{
 
 	class LeakyReLU: public nnLayer{
 		private:
-		Matrix<double>* res_ptr=nullptr;
 		Matrix<double>* input_ptr=nullptr;
 		Matrix<double> mask;
 		double alpha=0.0;
-
-		virtual void change_res_ptr(Matrix<double>* ptr) {
-			res_ptr = ptr;
-		}
 
 	public:
 		LeakyReLU(double alpha=1e-2): alpha(alpha){}
@@ -104,7 +102,7 @@ namespace nn{
 			return result;
 		}
 
-		void backward(const Matrix<double>& grad_other) override{
+		void backward() override{
 			auto& grad_current = *(res_ptr->grad_ptr);
 			
 			Matrix<double> grad_push(grad_current);
@@ -139,11 +137,9 @@ namespace nn{
 	*/
 
 	private:
-		Matrix<double>* res_ptr;
 		Matrix<double>* input_ptr;
 
 	public:
-		void change_res_ptr(Matrix<double>* ptr){ res_ptr = ptr; }
 
 		Matrix<double> forward(Matrix<double>& input){
 			input_ptr = &input;
@@ -159,7 +155,7 @@ namespace nn{
 		}
 
 
-		void backward(const Matrix<double>& grad_other){
+		void backward(){
 			auto& grad_current = *(res_ptr->grad_ptr);
 			Matrix<double> grad_push(grad_current.size(), 0.0);
 			for(size_t num = 0; num < grad_current.num_rows(); ++num){
@@ -185,6 +181,132 @@ namespace nn{
 	};
 
 
+	class BatchNorm: public nnLayer{
+	/*
+		let's look at x: N x 1 = (x_1 , ... , x_N)^T
+		y_i = (x_i - mean) / std
+
+		grad_y = (df/dy_1, ... , df/dy_N)
+		grad_x = (df/dx_1, ... , df/dx_N)
+
+		df/dx_j = sum(df/dy_k * dy_k/dx_j)
+
+		dy_i / dx_j = d[(x_i - mean) / std]/dx_j
+		d(x_j)/dx_i = (i == j)
+		d(mean)/dx_j = 1/N
+		d(D)/dx_j = 1/N * d(sum[(x_k - mean)^2])/dx_j = 
+		= 1/N * sum[2 * (x_k - mean) * (k == j - 1/N)] = 
+		= 2/N * sum[(x_k - mean) * -1/N] + sum[(x_k - mean) * (k == j)] = 
+		= 2/N * (x_j - mean)
+		d(std)/dx_j = d(sqrt(D))/dx_j = 1/(2 sqrt(D)) * 2/N * (x_j - mean) = 
+		= 1/(N * std) * (x_j - mean)
+
+		dy_i/dx_j = [(i == j - 1/N)(std) - (x_i - mean)(1/(N * std) * (x_j - mean))]/[std^2]
+		
+	*/
+	private:
+		Matrix<double>* input_ptr;
+		Matrix<double> __mean;
+		Matrix<double> __std;
+
+
+	public:
+		BatchNorm() = default;
+
+		static Matrix<double> mean(const Matrix<double>& input){
+			size_t num_out = input.num_columns();
+			size_t N = input.num_rows();
+
+			Matrix<double> result(1, num_out, 0.0, nullptr);
+			for(size_t num = 0; num < N; ++num){
+				for(size_t i = 0; i < num_out; ++i){
+					result[0][i] += input[num][i];
+				}
+			}
+			result /= N;
+			return result;
+		}
+
+		static Matrix<double> std(const Matrix<double>& input){
+			size_t num_out = input.num_columns();
+			size_t N = input.num_rows();
+
+			Matrix<double> result(1, num_out, 0.0, nullptr);
+			Matrix<double> __mean = mean(input);
+
+			for(size_t num = 0; num < N; ++num){
+				for(size_t i = 0; i < num_out; ++i){
+					result[0][i] += std::pow(input[num][i] - __mean[0][i], 2);
+				}
+			}
+			result /= N;
+			for(size_t i = 0; i < num_out; ++i){
+				result[0][i] = std::sqrt(result[0][i]);
+			}
+			return result;
+		}
+
+		Matrix<double> forward(Matrix<double>& input){
+			input_ptr = &input;
+
+			Matrix<double> result(input);
+
+			__mean = mean(input);
+			__std = std(input);
+
+			result.layer_ptr = shared_from_this();
+
+			for(size_t num = 0; num < input.num_rows(); ++num){
+				for(size_t i = 0; i < input.num_columns(); ++i){
+					result[num][i] -= __mean[0][i];
+					result[num][i] /= __std[0][i];
+				}
+			}
+
+			return result;
+		}
+
+		void backward(){
+			auto& grad_current = *(res_ptr->grad_ptr);
+			Matrix<double> grad_push(grad_current.size(), 0.0);
+			size_t num_out = input_ptr->num_columns();
+			size_t N = input_ptr->num_rows();
+
+			for(size_t out = 0; out < num_out; ++out){
+				for(size_t i = 0; i < N; ++i){
+					for(size_t j = 0; j < N; ++j){
+						//	dy_j/dx_i = [(j == i - 1/N)(std) - (x_j - mean)(1/(N * std) * (x_i - mean))]/[std^2]
+						double dy_j_dx_i = 
+						( ((i == j) - 1./N) * __std[0][out] - ((*input_ptr)[j][out] - __mean[0][out]) 
+							* ((*input_ptr)[i][out] - __mean[0][out])/(N * __std[0][out]) )
+						/ 
+						(std::pow(__std[0][out], 2.0));
+
+						grad_push[i][out] += grad_current[j][out] * dy_j_dx_i;
+					}
+				}
+			}
+
+			input_ptr->backward(grad_push);
+		}
+
+		void zero_grad(){
+			input_ptr->zero_grad();
+		}
+
+		void make_step(double step){
+			input_ptr->make_step(step);
+		}
+
+		void break_graph(){
+			input_ptr->break_graph();
+		}
+
+
+		~BatchNorm() = default;
+	};
+
+
 	template<size_t In, size_t Out>
 	class Linear: public nnLayer{
 	/*
@@ -207,18 +329,16 @@ namespace nn{
 	*/
 
 	private:
-		Matrix<double>* res_ptr;
 		Matrix<double>* input_ptr;
 
 		Matrix<double> w;
 		Matrix<double> b;
 
-		void change_res_ptr(Matrix<double>* ptr){
-			res_ptr = ptr;
-		}
-
 	public:
-		Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
+		//TODO
+		// Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
+		Linear(): w(Matrix<double>(In, Out, 1.0, nullptr)), b(Matrix<double>(1, Out, 1.0, nullptr)){}
+
 
 		Linear(const Linear& other) = delete;
 		Linear& operator=(const Linear& other) = delete;
@@ -244,18 +364,21 @@ namespace nn{
 			return result;
 		}
 		
-		void backward(const Matrix<double>& grad_other) override{
-			// grad_A = 1/K * grad_f * B^T
-			// grad_B = 1/M * A^T * grad_f
+		void backward() override{
+			// grad_A = grad_C * B^T
+			// grad_B = A^T * grad_C
+			// x * w + b
 
 			size_t N = input_ptr->num_rows();
 
-			Matrix<double> grad_push = grad_other; grad_push *= w.transpose(); grad_push /= Out;
-			Matrix<double> grad_w = input_ptr->transpose(); grad_w *= grad_other; grad_w /= N;
-			Matrix<double> grad_b = Matrix<double>(1, N, 1.0, nullptr); grad_b *= grad_other; grad_b /= N;
+			auto& grad_current = *(res_ptr->grad_ptr);
 
-			b.layer_ptr.reset();
+			Matrix<double> grad_push = grad_current; grad_push *= w.transpose();
+			Matrix<double> grad_w = input_ptr->transpose(); grad_w *= grad_current;
+			Matrix<double> grad_b = Matrix<double>(1, N, 1.0); grad_b *= grad_current;
+
 			w.layer_ptr.reset();
+			b.layer_ptr.reset();
 
 			w.backward(grad_w);
 			b.backward(grad_b);
@@ -270,9 +393,9 @@ namespace nn{
 		}
 
 		void make_step(double step){
-			auto grad_b = b.get_grad(); 	auto grad_w = w.get_grad();
-			grad_b *= step; 					grad_w *= step;
-			b -= grad_b; 						w -= grad_w;
+			auto& grad_b = *(b.grad_ptr); 	auto& grad_w = (*w.grad_ptr);
+			grad_b *= step; 				grad_w *= step;
+			b -= grad_b; 					w -= grad_w;
 
 			input_ptr->make_step(step);
 		}
@@ -326,20 +449,20 @@ namespace nn{
 			return outputs.back();
 		}
 
-		void backward(Matrix<double>& grad_other){
-			seq.back()->backward(grad_other);
+		void backward(const Matrix<double>& grad_other){
+			outputs.back().backward(grad_other);
 		}
 
 		void make_step(double step){
-			seq.back()->make_step(step);
+			outputs.back().make_step(step);
 		}
 
 		void zero_grad(){
-			seq.back()->zero_grad();
+			outputs.back().zero_grad();
 		}
 
 		void break_graph(){
-			seq.back()->break_graph();
+			outputs.back().break_graph();
 		}
 
 		~Sequential(){}
@@ -363,11 +486,7 @@ namespace nn{
 	private:
 		Matrix<double>* real_ptr=nullptr;
 		Matrix<double>* pred_ptr=nullptr;
-		Matrix<double>* res_ptr=nullptr;
 
-		void change_res_ptr(Matrix<double>* ptr){
-			res_ptr = ptr;
-		}
 
 	public:
 		MSELoss() = default;
@@ -394,10 +513,11 @@ namespace nn{
 			return result;
 		}
 
-		void backward(const Matrix<double>& _not_used=Matrix<double>()) override{
+		void backward() override{
 			Matrix<double> grad_push(*pred_ptr);
 			grad_push -= *real_ptr;
 			grad_push *= 2;
+			grad_push /= pred_ptr->num_rows();
 
 			pred_ptr->backward(grad_push);
 		}
@@ -467,7 +587,6 @@ namespace nn{
 	*/
 
 	private:
-		Matrix<double>* res_ptr;
 		Matrix<double>* real_ptr;
 		Matrix<double>* pred_ptr;
 		Matrix<double> logits;
@@ -475,10 +594,6 @@ namespace nn{
 	public:
 
 		CrossEntropyLoss() = default;
-
-		void change_res_ptr(Matrix<double>* ptr){
-			res_ptr = ptr;
-		}
 
 		Matrix<double> forward(Matrix<double>& real, Matrix<double>& pred) override{
 			if(real.size() != pred.size()){
@@ -515,9 +630,10 @@ namespace nn{
 			return result;
 		}
 
-		void backward(const Matrix<double>& _not_used=Matrix<double>()){
+		void backward(){
 			Matrix<double> grad_push(logits);
 			grad_push -= *real_ptr;
+			grad_push /= pred_ptr->num_rows();
 			pred_ptr->backward(grad_push);
 		}
 
