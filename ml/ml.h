@@ -336,8 +336,8 @@ namespace nn{
 
 	public:
 		//TODO
-		// Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
-		Linear(): w(Matrix<double>(In, Out, 1.0, nullptr)), b(Matrix<double>(1, Out, 1.0, nullptr)){}
+		Linear(): w(Matrix<double>::random(In, Out, nullptr)), b(Matrix<double>::random(1, Out, nullptr)){}
+		// Linear(): w(Matrix<double>(In, Out, 1.0, nullptr)), b(Matrix<double>(1, Out, 1.0, nullptr)){}
 
 
 		Linear(const Linear& other) = delete;
