@@ -6,7 +6,7 @@ using std::cin, std::cout;
 
 //regression
 int main(){
-		nn::Sequential<
+	nn::Sequential<
 		nn::Linear<1, 2>,
 		nn::BatchNorm,
 		nn::ReLU,

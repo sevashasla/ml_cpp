@@ -6,15 +6,6 @@
 */
 
 
-//TODO
-/*
-	1) Do I need grad_other in backward in Layer?
-	2) I can make input_ptr, left_ptr, right_ptr in Layer
-	so I don't need to copy-paste code
-
-*/
-
-
 #pragma once
 
 #include "matrix.h"
