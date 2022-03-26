@@ -35,55 +35,57 @@ class Matrix{
 	template<typename FField>
 	friend std::istream& operator>>(std::istream& out, Matrix<FField>& m);
 
-protected:
-	std::vector<std::vector<Field>> matrix;
 
 private:
-	size_t __m;
-	size_t __n;
-
 	// second = first * coeff + second
 	void add_str(size_t first, size_t second, Field coeff = 1){
-		for(size_t k = 0; k < __n; ++k){
+		for(size_t k = 0; k < n_; ++k){
 			matrix[second][k] += coeff * matrix[first][k];
 		}
 	}
 
 	void add_row(size_t first, size_t second, Field coeff = 1){
-		for(size_t k = 0; k < __m; ++k){
+		for(size_t k = 0; k < m_; ++k){
 			matrix[k][second] += coeff * matrix[k][first];
 		}
 	}
 
+protected:
+	size_t m_;
+	size_t n_;
+	std::vector<std::vector<Field>> matrix;
+
 public:
-	Matrix(): Matrix(0, 0, nullptr){}
+	Matrix(): Matrix(0, 0){}
+
+	Matrix(const Field& f): Matrix(1, 1, f){}
 
 	//	Construct Matrix: m x n with  1 on the main diag
-	Matrix(size_t m, size_t n): __m(m), __n(n), 
-	matrix(__m, std::vector<Field>(__n, 0)){
-		for(size_t i = 0; i < std::min(__m, __n); ++i){
+	Matrix(size_t m, size_t n): m_(m), n_(n), 
+	matrix(m_, std::vector<Field>(n_, 0)){
+		for(size_t i = 0; i < std::min(m_, n_); ++i){
 			matrix[i][i] = 1;
 		}
 	}
 
 	//	Construct Matrix: m x n, full of f
-	Matrix(size_t m, size_t n, const Field& f): __m(m), __n(n), 
-	matrix(__m, std::vector<Field>(__n, f)){}
+	Matrix(size_t m, size_t n, const Field& f): m_(m), n_(n), 
+	matrix(m_, std::vector<Field>(n_, f)){}
 
-	Matrix(const Matrix& other): __m(other.__m), __n(other.__n), 
+	Matrix(const Matrix& other): m_(other.m_), n_(other.n_), 
 	matrix(other.matrix){}
 
-	Matrix(Matrix&& other): __m(other.__m), __n(other.__n), 
+	Matrix(Matrix&& other): m_(other.m_), n_(other.n_), 
 	matrix(std::move(other.matrix)){
-		other.__m = other.__n = 0;
+		other.m_ = other.n_ = 0;
 	}
 
 	//	Construct Matrix from vector
-	Matrix(const std::vector<std::vector<Field>>& matrix_other): __m(matrix_other.size()), 
-	__n(matrix_other[0].size()), matrix(matrix_other){}
+	Matrix(const std::vector<std::vector<Field>>& matrix_other): m_(matrix_other.size()), 
+	n_(matrix_other[0].size()), matrix(matrix_other){}
 
-	Matrix(std::vector<std::vector<Field>>&& matrix_other): __m(matrix_other.size()), 
-	__n(matrix_other[0].size()), matrix(std::move(matrix_other)){}
+	Matrix(std::vector<std::vector<Field>>&& matrix_other): m_(matrix_other.size()), 
+	n_(matrix_other[0].size()), matrix(std::move(matrix_other)){}
 
 	Matrix& operator=(const Matrix& other) & = default;
 	Matrix& operator=(Matrix&& other) & = default;
@@ -107,15 +109,15 @@ public:
 	//	For adding another one row
 	void push_row(const std::vector<double>& v){
 		matrix.push_back(v);
-		++__m;
+		++m_;
 	}
 
 	//	For adding another one column
 	void push_column(const std::vector<double>& v){
-		for(size_t i = 0; i < __m; ++i){
+		for(size_t i = 0; i < m_; ++i){
 			matrix[i].push_back(v[i]);
 		}
-		++__n;
+		++n_;
 	}
 
 	std::vector<Field>& operator[](size_t i) {
@@ -146,14 +148,14 @@ public:
 
 	Matrix& operator*=(const Matrix<Field>& other){
 		//m x n * n x k
-		if(__n != other.__m){
-			throw BadShape("Wrong shapes of matrices. Matrix, *=");
+		if(n_ != other.m_){
+			throw BadShape("Wrong shapes of matrices. Matrix, *");
 		}
 
-		Matrix<Field> result(__m, other.__n, 0);
-		for(size_t i = 0; i < __m; ++i){
-			for(size_t j = 0; j < other.__n; ++j){
-				for(size_t k = 0; k < __n; ++k){
+		Matrix<Field> result(m_, other.n_, 0);
+		for(size_t i = 0; i < m_; ++i){
+			for(size_t j = 0; j < other.n_; ++j){
+				for(size_t k = 0; k < n_; ++k){
 					result[i][j] += matrix[i][k] * other[k][j];
 				}
 			}
@@ -165,11 +167,11 @@ public:
 
 	Matrix& operator+=(const Matrix<Field>& other){
 		if(size() != other.size()){
-			throw BadShape("Wrong shapes of matrices. Matrix, +=");
+			throw BadShape("Wrong shapes of matrices. Matrix, +");
 		}
 
-		for(size_t i = 0; i < __m; ++i){
-			for(size_t j = 0; j < __n; ++j){
+		for(size_t i = 0; i < m_; ++i){
+			for(size_t j = 0; j < n_; ++j){
 				matrix[i][j] += other[i][j];
 			}
 		}
@@ -179,11 +181,11 @@ public:
 
 	Matrix& operator-=(const Matrix<Field>& other){
 		if(size() != other.size()){
-			throw BadShape("Wrong shapes of matrices. Matrix, -=");
+			throw BadShape("Wrong shapes of matrices. Matrix, -");
 		}
 
-		for(size_t i = 0; i < __m; ++i){
-			for(size_t j = 0; j < __n; ++j){
+		for(size_t i = 0; i < m_; ++i){
+			for(size_t j = 0; j < n_; ++j){
 				matrix[i][j] -= other[i][j];
 			}
 		}
@@ -192,17 +194,17 @@ public:
 
 	//	make current matrix full of 0
 	void make_zero(){
-		for(size_t i = 0; i < __m; ++i){
-			for(size_t j = 0; j < __n; ++j){
+		for(size_t i = 0; i < m_; ++i){
+			for(size_t j = 0; j < n_; ++j){
 				matrix[i][j] = 0.0;
 			}
 		}
 	}
 
 	Matrix<Field> transpose() const{
-		Matrix<Field> transposed(__n, __m, 0, nullptr);
-		for(size_t i = 0; i < __n; ++i){
-			for(size_t j = 0; j < __m; ++j){
+		Matrix<Field> transposed(n_, m_, 0, nullptr);
+		for(size_t i = 0; i < n_; ++i){
+			for(size_t j = 0; j < m_; ++j){
 				transposed[i][j] = matrix[j][i];
 			}
 		}
@@ -223,32 +225,45 @@ public:
 
 
 	std::pair<size_t, size_t> size() const{
-		return std::make_pair(__m, __n);
+		return std::make_pair(m_, n_);
 	}
 
 	size_t num_rows() const{
-		return __m;
+		return m_;
 	}
 
 	size_t num_columns() const{
-		return __n;
+		return n_;
 	}
 
 	template<typename FField>
 	explicit operator Matrix<FField>() const{
-		Matrix<FField> res(__m, __n, 0, nullptr);
-		for(size_t i = 0; i < __m; ++i){
-			for(size_t j = 0; j < __n; ++j){
+		Matrix<FField> res(m_, n_, 0, nullptr);
+		for(size_t i = 0; i < m_; ++i){
+			for(size_t j = 0; j < n_; ++j){
 				res[i][j] = static_cast<FField>(matrix[i][j]);
 			}
 		}
 		return res;
 	}
 
-	//	I don't allocate vatiables
-	//	So there is trivial destructor
 	~Matrix() = default;
 };
+
+template<typename Field>
+Matrix<Field> operator+(Matrix<Field> left, const Matrix<Field>& right){
+	return left += right;
+}
+
+template<typename Field>
+Matrix<Field> operator-(Matrix<Field> left, const Matrix<Field>& right){
+	return left -= right;
+}
+
+template<typename Field>
+Matrix<Field> operator*(Matrix<Field> left, const Matrix<Field>& right){
+	return left *= right;
+}
 
 template<typename Field>
 std::ostream& operator<<(std::ostream& out, const Matrix<Field>& m){

@@ -9,39 +9,28 @@ template<typename Field>
 class Tensor;
 
 template<typename Field>
-class Layer: std::enable_shared_from_this<Layer<Field>> {
-protected:
-    std::shared_ptr<Tensor<Field>> right_;
-    std::shared_ptr<Tensor<Field>> left_;
+class Layer: public std::enable_shared_from_this<Layer<Field>> {
+
+template<typename FField>
+friend class Tensor;
 
 public:
-    std::shared_ptr<Matrix<Field>> grad_ptr_;
-
     virtual ~Layer() = default;
-    virtual void backward_() = 0;
-    virtual void make_step_() = 0;
-    virtual void break_graph_() = 0;
+
+    // forward for one argument
+    virtual Tensor<Field> forward(Tensor<Field>&){
+        throw std::runtime_error("This Layer expected 2 arguments");
+    }
+
+    // forward for two arguments
+    virtual Tensor<Field> forward(Tensor<Field>&, Tensor<Field>&){
+        throw std::runtime_error("This Layer expected 1 argument");
+    }
 
 private:
-
-};
-
-template<typename Field>
-class Multiplier: Layer<Field> {
-    using Layer<Field>::left_;
-    using Layer<Field>::right_;
-
-public:
-    Multiplier(Tensor<Field> left, Tensor<Field> right) {
-
-        left_ = std::make_shared(std::move(left));
-        right_ = std::make_shared(std::move(right_));
-    }
-
-    void abobus2() {
-        left_->abobus();
-    }
-
+    virtual void backward_(const Matrix<Field>&) = 0;
+    virtual void make_step_(Field step) = 0;
+    virtual void break_graph_() = 0;
 };
 
 } // end of namespace nn

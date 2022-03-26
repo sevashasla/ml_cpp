@@ -6,18 +6,10 @@
 
 using namespace std;
 
-struct A{
-    void print() {
-        cout << "A\n";
-    }
-};
-
-struct B: A{
-    using A::print;
-};
-
-
 int main() {
-    nn::Tensor<int> a(5, 3);
-    cout << a << "\n";
+    nn::Tensor<double> a(5, 3);
+    nn::Tensor<double> b(5, 3);
+    auto c = a + b;
+    c.backward();
+
 }
