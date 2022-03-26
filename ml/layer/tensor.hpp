@@ -32,11 +32,19 @@ public:
     using Matrix<Field>::operator+=;
     using Matrix<Field>::operator-=;
     using Matrix<Field>::operator*=;
+    using Matrix<Field>::sum;
     using Matrix<Field>::size;
     using Matrix<Field>::transpose;
 
     Tensor() = default;
-    Tensor(size_t m, size_t n): Matrix<Field>(m, n), grad(m, n, 0) {}
+    Tensor(size_t m, size_t n, std::shared_ptr<Layer<Field>> from=nullptr): 
+        Matrix<Field>(m, n), 
+        from_(std::move(from)),
+        grad(m, n, 0) {}
+
+    Tensor(std::pair<size_t, size_t> size, std::shared_ptr<Layer<Field>> from=nullptr): 
+        Tensor(size.first, size.second, std::move(from)) {}
+
     Tensor(const Matrix<Field>& other, std::shared_ptr<Layer<Field>> ptr): 
         Matrix<Field>(other), 
         from_(ptr), 
@@ -74,7 +82,7 @@ public:
     void zero_grad() {
         grad.make_zero();
         if (from_) {
-            from_->make_zero_();
+            from_->zero_grad_();
         }
     }
 
@@ -116,6 +124,16 @@ template<typename Field>
 Tensor<Field> transpose(Tensor<Field>& tensor) {
     auto layer = std::make_shared<Transposer<Field>>();
     return layer->forward(tensor);
+}
+
+template<typename Field>
+Tensor<Field> operator==(const Tensor<Field>& left, const Tensor<Field>& right){    
+    return static_cast<Matrix<Field>&>(left) == static_cast<Matrix<Field>&>(right);
+}
+
+template<typename Field>
+Tensor<Field> operator!=(const Tensor<Field>& left, const Tensor<Field>& right){    
+    return static_cast<Matrix<Field>&>(left) != static_cast<Matrix<Field>&>(right);
 }
 
 template<typename Field>

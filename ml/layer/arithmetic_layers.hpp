@@ -46,7 +46,7 @@ public:
 		right_ptr->backward(left_ptr->transpose() * grad);
 	}
 	
-	void zero_grad_(){
+	void zero_grad_() override {
 		left_ptr->zero_grad();
 		right_ptr->zero_grad();
 	}
@@ -56,7 +56,7 @@ public:
 		right_ptr->make_step(step);
 	}
 
-	void break_graph_(){
+	void break_graph_() override {
 		left_ptr->break_graph();
 		right_ptr->break_graph();
 	}
@@ -115,7 +115,7 @@ public:
 		right_ptr->backward(grad);
 	}
 
-	void zero_grad_(){
+	void zero_grad_() override{
 		left_ptr->zero_grad();
 		right_ptr->zero_grad();
 	}
@@ -125,7 +125,7 @@ public:
 		right_ptr->make_step(step);
 	}
 
-	void break_graph_(){
+	void break_graph_() override {
 		left_ptr->break_graph();
 		right_ptr->break_graph();
 	}
@@ -171,7 +171,7 @@ public:
 		right_ptr->make_step(step);
 	}
 
-	void break_graph_() override{
+	void break_graph_() override {
 		left_ptr->break_graph();
 		right_ptr->break_graph();
 	}

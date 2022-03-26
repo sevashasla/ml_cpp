@@ -68,7 +68,9 @@ public:
 		}
 	}
 
-	//	Construct Matrix: m x n, full of f
+	Matrix(std::pair<size_t, size_t> size): Matrix(size.first, size.second) {}
+	Matrix(std::pair<size_t, size_t> size, const Field& f): Matrix(size.first, size.second, f) {}
+
 	Matrix(size_t m, size_t n, const Field& f): m_(m), n_(n), 
 		matrix(m_, std::vector<Field>(n_, f)){}
 
@@ -262,6 +264,36 @@ Matrix<Field> operator-(Matrix<Field> left, const Matrix<Field>& right){
 template<typename Field>
 Matrix<Field> operator*(Matrix<Field> left, const Matrix<Field>& right){
 	return left *= right;
+}
+
+template<typename Field>
+Matrix<Field> operator==(const Matrix<Field>& left, const Matrix<Field>& right){	
+	if(left.size() != right.size()){
+		throw BadShape("One can't compare (==) matrices with different shapes");
+	}
+
+	Matrix<Field> res(left.num_rows(), left.num_columns(), 0);
+	for(size_t i = 0; i < left.num_rows(); ++i){
+		for(size_t j = 0; j < left.num_columns(); ++j){
+			res[i][j] = equal(left[i][j], right[i][j]);
+		}
+	}
+	return res;
+}
+
+template<typename Field>
+Matrix<Field> operator!=(const Matrix<Field>& left, const Matrix<Field>& right){
+	if(left.size() != right.size()){
+		throw BadShape("One can't compare (!=) matrices with different shapes");
+	}
+
+	Matrix<Field> res(left.num_rows(), left.num_columns(), 0);
+	for(size_t i = 0; i < left.num_rows(); ++i){
+		for(size_t j = 0; j < left.num_columns(); ++j){
+			res[i][j] = !equal(left[i][j], right[i][j]);
+		}
+	}
+	return res;
 }
 
 template<typename Field>

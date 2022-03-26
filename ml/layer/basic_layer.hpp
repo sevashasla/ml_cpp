@@ -31,6 +31,7 @@ private:
     virtual void backward_(const Matrix<Field>&) = 0;
     virtual void make_step_(Field step) = 0;
     virtual void break_graph_() = 0;
+    virtual void zero_grad_() = 0;
 };
 
 } // end of namespace nn

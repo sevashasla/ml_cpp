@@ -1,0 +1,65 @@
+#pragma once
+
+#include "../layer/tensor.hpp"
+#include <list>
+#include <memory>
+
+
+template<typename...>
+void f() = delete;
+
+namespace nn::models {
+	template<typename Field, typename... Layers>
+	class Sequential{
+	private:
+		std::list<std::shared_ptr<Layer<Field>>> seq;
+		std::list<Tensor<Field>> outputs;
+
+		template<typename... LLayers>
+		void Add(LLayers&&... layers){}
+
+		template<typename Head, typename... LLayers>
+		void Add(){
+			seq.push_back(std::make_shared<Head>());
+			Add<LLayers...>();
+		}
+
+	public:
+		static const size_t length = sizeof...(Layers);
+
+		Sequential(){
+			Add<Layers...>();
+		}
+
+		Tensor<Field> forward(Tensor<Field>& input){
+			outputs.clear();
+			outputs.push_back(input);
+			for(auto& layer_ptr: seq){
+				auto& input_current = outputs.back();
+				auto output_current = layer_ptr->forward(input_current);
+				outputs.push_back(std::move(output_current));
+			}
+			return outputs.back();
+		}
+
+		void backward(const Matrix<Field>& grad){
+			outputs.back().backward(grad);
+		}
+
+		void make_step(Field step){
+			outputs.back().make_step_(step);
+		}
+
+		void zero_grad(){
+			outputs.back().zero_grad_();
+		}
+
+		// Do I really need this?
+		void break_graph(){
+			outputs.back().break_graph_();
+		}
+
+		~Sequential(){}
+	};
+}
+
