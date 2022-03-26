@@ -70,15 +70,12 @@ public:
 
 	//	Construct Matrix: m x n, full of f
 	Matrix(size_t m, size_t n, const Field& f): m_(m), n_(n), 
-	matrix(m_, std::vector<Field>(n_, f)){}
+		matrix(m_, std::vector<Field>(n_, f)){}
 
-	Matrix(const Matrix& other): m_(other.m_), n_(other.n_), 
-	matrix(other.matrix){}
-
-	Matrix(Matrix&& other): m_(other.m_), n_(other.n_), 
-	matrix(std::move(other.matrix)){
-		other.m_ = other.n_ = 0;
-	}
+	Matrix(const Matrix& other) = default;
+	Matrix(Matrix&& other) = default;
+	Matrix& operator=(const Matrix& other) & = default;
+	Matrix& operator=(Matrix&& other) & = default;
 
 	//	Construct Matrix from vector
 	Matrix(const std::vector<std::vector<Field>>& matrix_other): m_(matrix_other.size()), 
@@ -87,8 +84,6 @@ public:
 	Matrix(std::vector<std::vector<Field>>&& matrix_other): m_(matrix_other.size()), 
 	n_(matrix_other[0].size()), matrix(std::move(matrix_other)){}
 
-	Matrix& operator=(const Matrix& other) & = default;
-	Matrix& operator=(Matrix&& other) & = default;
 
 	//	Get Matrix: m x n with 1 on the main diag
 	static Matrix<Field> eye(size_t m, size_t n){
@@ -106,13 +101,13 @@ public:
 		return res;
 	}
 
-	//	For adding another one row
+	//	For push another one row
 	void push_row(const std::vector<double>& v){
 		matrix.push_back(v);
 		++m_;
 	}
 
-	//	For adding another one column
+	//	For push another one column
 	void push_column(const std::vector<double>& v){
 		for(size_t i = 0; i < m_; ++i){
 			matrix[i].push_back(v[i]);
@@ -148,7 +143,7 @@ public:
 
 	Matrix& operator*=(const Matrix<Field>& other){
 		//m x n * n x k
-		if(n_ != other.m_){
+		if (n_ != other.m_){
 			throw BadShape("Wrong shapes of matrices. Matrix, *");
 		}
 
@@ -202,7 +197,7 @@ public:
 	}
 
 	Matrix<Field> transpose() const{
-		Matrix<Field> transposed(n_, m_, 0, nullptr);
+		Matrix<Field> transposed(n_, m_);
 		for(size_t i = 0; i < n_; ++i){
 			for(size_t j = 0; j < m_; ++j){
 				transposed[i][j] = matrix[j][i];
@@ -210,7 +205,6 @@ public:
 		}
 		return transposed;
 	}
-
 
 	//	Get result if we sum every element
 	Field sum() const{
@@ -253,6 +247,11 @@ public:
 template<typename Field>
 Matrix<Field> operator+(Matrix<Field> left, const Matrix<Field>& right){
 	return left += right;
+}
+
+template<typename Field>
+Matrix<Field> operator*(Matrix<Field> left, const Field& field){
+	return left += field;
 }
 
 template<typename Field>
