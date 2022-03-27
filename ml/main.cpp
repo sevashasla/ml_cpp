@@ -32,19 +32,18 @@ void test0(){
 	Tensor<double> x(
 		Matrix<double>({
 			{0.0},
-{1.0},
-{2.0},
-{3.0},
-{4.0}
-		})
-	);
+			{1.0},
+			{2.0},
+			{3.0},
+			{4.0}
+		}), nullptr, false);
 	Tensor<double> y(Matrix<double>({
 			{0.0},
-{2.0},
-{4.0},
-{6.0},
-{8.0}
-	}));
+			{2.0},
+			{4.0},
+			{6.0},
+			{8.0}
+		}), nullptr, false);
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model->forward(x);
@@ -60,7 +59,6 @@ void test0(){
 
 	cout << "bias: \n";
 	cout << model->get_bias();
-
 }
 
 
@@ -84,7 +82,7 @@ void test1(){
 			{-0.8586260784193804},
 			{-0.485021712883056},
 			{-0.5376472107543984}
-		})
+		}), nullptr, false
 	);
 	Tensor<double> y(Matrix<double>({
 			{-23.625950092615337},
@@ -97,7 +95,7 @@ void test1(){
 			{-54.194512015829226},
 			{-30.613459930272658},
 			{-33.93506085576242}
-	}));
+	}), nullptr, false);
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model->forward(x);
@@ -116,15 +114,67 @@ void test1(){
 }
 
 void test2(){
+	// auto model = nn::models::Sequential<
+	// 	double, 
+	// 	nn::layers::Linear<double, 2, 1>
+	// >();
+	auto model = nn::models::Sequential<
+		double,
+		nn::layers::Linear<double, 1, 1>,
+		nn::layers::ReLU<double>,
+		nn::layers::Linear<double, 1, 1>
+	>();
+	auto loss_fn = std::make_shared<nn::losses::MSELoss<double>>();
 
+	Tensor<double> x(
+		Matrix<double>({
+			{-0.3743157032400103},
+			{2.2615914567952107},
+			{-1.817402626965077},
+			{-0.3368376833769455},
+			{0.427090363992074},
+			{1.1673731432849708},
+			{-0.541317756970594},
+			{-0.8586260784193804},
+			{-0.485021712883056},
+			{-0.5376472107543984}
+		}), nullptr, false
+	);
+	Tensor<double> y(Matrix<double>({
+			{-23.625950092615337},
+			{142.7464742345267},
+			{-114.71029238475006},
+			{-21.26042329480674},
+			{26.95696583758793},
+			{73.68191979118171},
+			{-34.166737328231626},
+			{-54.194512015829226},
+			{-30.613459930272658},
+			{-33.93506085576242}
+	}), nullptr, false);
+
+	for(int epoch = 0; epoch < 10000; ++epoch) {
+		auto pred = model.forward(x);
+		auto loss = loss_fn->forward(y, pred);
+		loss.backward();
+		loss.make_step(1e-3);
+		loss.zero_grad();
+		loss.break_graph();
+	}
+
+	auto pred = model.forward(x);
+	auto loss = loss_fn->forward(y, pred);
+	cout << "loss: \n" << loss;
 }
 
 
 int main() {
 	cout << "----------------test0----------------\n";
 	test0();
-	// cout << "----------------test1----------------\n";
-	// test1();
+	cout << "----------------test1----------------\n";
+	test1();
+	cout << "----------------test2----------------\n";
+	test2();
 
 	return 0;
 }

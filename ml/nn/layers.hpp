@@ -317,8 +317,8 @@ private:
 
 public:
 	//TODO
-	// Linear(): w(Matrix<Field>::random(In, Out), nullptr), b(Matrix<Field>::random(1, Out), nullptr){}
-	Linear(): w(Matrix<Field>(In, Out, 0.4)), b(Matrix<Field>(1, Out, 0.2), nullptr){}
+	Linear(): w(Matrix<Field>::random(In, Out), nullptr), b(Matrix<Field>::random(1, Out), nullptr){}
+	// Linear(): w(Matrix<Field>(In, Out, 0.4)), b(Matrix<Field>(1, Out, 0.2), nullptr){}
 
 	Tensor<Field> forward(Tensor<Field>& input) override{
 		input_ptr = &input;

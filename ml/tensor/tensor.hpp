@@ -26,6 +26,7 @@ private:
     using Matrix<Field>::matrix;
     using Matrix<Field>::m_;
     using Matrix<Field>::n_;
+    bool requires_grad=true;
     
 public:
     using Matrix<Field>::operator[];
@@ -37,23 +38,26 @@ public:
     using Matrix<Field>::transpose;
 
     Tensor() = default;
-    Tensor(size_t m, size_t n, std::shared_ptr<Layer<Field>> from=nullptr): 
+    Tensor(size_t m, size_t n, std::shared_ptr<Layer<Field>> from=nullptr, bool requires_grad=true): 
         Matrix<Field>(m, n), 
         from_(std::move(from)),
-        grad(m, n, 0) {}
+        grad(m, n, 0),
+        requires_grad(requires_grad) {}
 
-    Tensor(std::pair<size_t, size_t> size, std::shared_ptr<Layer<Field>> from=nullptr): 
-        Tensor(size.first, size.second, std::move(from)) {}
+    Tensor(std::pair<size_t, size_t> size, std::shared_ptr<Layer<Field>> from=nullptr, bool requires_grad=true): 
+        Tensor(size.first, size.second, std::move(from), requires_grad) {}
 
-    Tensor(const Matrix<Field>& other, std::shared_ptr<Layer<Field>> ptr=nullptr): 
+    Tensor(const Matrix<Field>& other, std::shared_ptr<Layer<Field>> ptr=nullptr, bool requires_grad=true): 
         Matrix<Field>(other), 
         from_(ptr), 
-        grad(m_, n_, 0){}
+        grad(m_, n_, 0),
+        requires_grad(requires_grad){}
 
-    Tensor(Matrix<Field>&& other, std::shared_ptr<Layer<Field>> ptr=nullptr):
+    Tensor(Matrix<Field>&& other, std::shared_ptr<Layer<Field>> ptr=nullptr, bool requires_grad=true):
         Matrix<Field>(std::move(other)), 
         from_(std::move(ptr)), 
-        grad(m_, n_, 0){}
+        grad(m_, n_, 0),
+        requires_grad(requires_grad) {}
 
     /*
         Warning! If one want to move/assign/copy Tensor then 
@@ -101,8 +105,10 @@ public:
     }
 
     // TODO: add optimizer
-    void make_step(Field step) { 
-        *this -= (grad * step);
+    void make_step(Field step) {
+        if (requires_grad) {
+            *this -= (grad * step);
+        }
         if (from_) {
             from_->make_step_(step);
         }
