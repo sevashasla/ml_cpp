@@ -253,7 +253,7 @@ Matrix<Field> operator+(Matrix<Field> left, const Matrix<Field>& right){
 
 template<typename Field>
 Matrix<Field> operator*(Matrix<Field> left, const Field& field){
-	return left += field;
+	return left *= field;
 }
 
 template<typename Field>

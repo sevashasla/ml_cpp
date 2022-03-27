@@ -1,14 +1,10 @@
 #pragma once
 
-#include "../layer/tensor.hpp"
+#include "../tensor/tensor.hpp"
+#include "../tensor/basic_layer.hpp"
 #include <list>
-#include <memory>
 
-
-template<typename...>
-void f() = delete;
-
-namespace nn::models {
+namespace ml::nn::models {
 	template<typename Field, typename... Layers>
 	class Sequential{
 	private:

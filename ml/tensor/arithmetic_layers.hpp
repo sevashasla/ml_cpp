@@ -2,7 +2,7 @@
 
 #include "basic_layer.hpp"
 
-namespace nn{
+namespace ml {
 template<typename Field>
 class Multiplier: public Layer<Field>{
 
@@ -215,4 +215,4 @@ public:
 };
 
 
-} // end of namespace nn
+} // end of namespace ml

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../layer/tensor.hpp"
+#include "../tensor/tensor.hpp"
+#include "../tensor/basic_layer.hpp"
 
-namespace nn::losses {
+namespace ml::nn::losses {
 
 template<typename Field>
 class MSELoss: public Layer<Field> {
@@ -70,7 +71,7 @@ public:
 };
 
 
-template<size_t Classes, typename Field>
+template<typename Field, size_t Classes>
 class CrossEntropyLoss: public Layer<Field>{
 /*
 	x: 1 x C
@@ -150,4 +151,4 @@ public:
 	}
 };
 
-} // end of nn::losses
+} // end of ml::nn::losses

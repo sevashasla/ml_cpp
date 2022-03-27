@@ -1,9 +1,9 @@
 #pragma once
 
-#include "matrix.hpp"
+#include "../matrix/matrix.hpp"
 #include "tensor.hpp"
 
-namespace nn{
+namespace ml{
 
 template<typename Field>
 class Tensor;
@@ -34,4 +34,4 @@ private:
     virtual void zero_grad_() = 0;
 };
 
-} // end of namespace nn
+} // end of namespace ml

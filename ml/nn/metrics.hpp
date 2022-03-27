@@ -1,6 +1,8 @@
 #pragma once
 
-#include "../tensor.hpp"
+#include "../tensor/tensor.hpp"
+
+namespace ml::metrics {
 
 template<typename Field>
 Tensor<Field> accuracy(const Tensor<Field>& real, const Tensor<Field>& predicted_classes){
@@ -9,3 +11,5 @@ Tensor<Field> accuracy(const Tensor<Field>& real, const Tensor<Field>& predicted
 	result[0][0] /= real.num_rows();
 	return result;
 }
+
+} // end of ml::metrics

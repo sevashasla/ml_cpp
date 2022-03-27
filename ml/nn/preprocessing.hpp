@@ -1,6 +1,8 @@
 #pragma once
 
-#include "../tensor.hpp"
+#include "../tensor/tensor.hpp"
+
+namespace ml::preprocessing {
 
 template<size_t Classes, typename Field>
 Tensor<bool> OneHot(const Tensor<Field>& input){
@@ -25,3 +27,5 @@ Matrix<size_t> predict(const Matrix<Field>& input){
 	}
 	return result;
 }
+
+} // end of ml::preprocessing

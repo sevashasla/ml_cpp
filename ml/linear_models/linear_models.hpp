@@ -1,6 +1,8 @@
 #pragma once
 
-#include "matrix.h"
+#include "../matrix/matrix.h"
+
+namespace ml::linear_models{
 
 template<size_t M>
 class LinearRegression{
@@ -319,3 +321,5 @@ public:
 		return w;
 	}
 };
+
+} // end of ml::linear_models

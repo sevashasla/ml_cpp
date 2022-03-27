@@ -1,10 +1,10 @@
 #pragma once
 
-#include "matrix.hpp"
+#include "../matrix/matrix.hpp"
 #include "basic_layer.hpp"
 #include "arithmetic_layers.hpp"
 
-namespace nn{
+namespace ml {
 
 template<typename Field>
 class Layer;
@@ -45,12 +45,12 @@ public:
     Tensor(std::pair<size_t, size_t> size, std::shared_ptr<Layer<Field>> from=nullptr): 
         Tensor(size.first, size.second, std::move(from)) {}
 
-    Tensor(const Matrix<Field>& other, std::shared_ptr<Layer<Field>> ptr): 
+    Tensor(const Matrix<Field>& other, std::shared_ptr<Layer<Field>> ptr=nullptr): 
         Matrix<Field>(other), 
         from_(ptr), 
         grad(m_, n_, 0){}
 
-    Tensor(Matrix<Field>&& other, std::shared_ptr<Layer<Field>> ptr): 
+    Tensor(Matrix<Field>&& other, std::shared_ptr<Layer<Field>> ptr=nullptr):
         Matrix<Field>(std::move(other)), 
         from_(std::move(ptr)), 
         grad(m_, n_, 0){}
@@ -93,8 +93,15 @@ public:
         from_.reset();
     }
 
+    Field value() const {
+        if (m_ != 1 || n_ != 1) {
+            throw BadShape("m > 1 or n > 1. Tensor value");
+        }
+        return matrix[0][0];
+    }
+
     // TODO: add optimizer
-    void make_step(Field step) {
+    void make_step(Field step) { 
         *this -= (grad * step);
         if (from_) {
             from_->make_step_(step);
@@ -158,5 +165,5 @@ std::istream& operator>>(std::istream& in, Tensor<Field>& m){
     return in;
 }
 
-} // end of namespace nn
+} // end of namespace ml
 
