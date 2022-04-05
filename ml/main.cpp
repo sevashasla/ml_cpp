@@ -9,25 +9,8 @@ using namespace ml;
 
 
 void test0(){
-	// auto model = nn::models::Sequential<
-	// 	double, 
-	// 	nn::layers::Linear<double, 2, 1>
-	// >();
 	auto model = std::make_shared<nn::layers::Linear<double, 1, 1>>();
 	auto loss_fn = std::make_shared<nn::losses::MSELoss<double>>();
-
-	// Tensor<double> x(
-	// 	Matrix<double>({
-	// 		{0.0},
-	// 		{1.0},
-	// 		{2.0}
-	// 	})
-	// );
-	// Tensor<double> y(Matrix<double>({
-	// 		{0.0},
-	// 		{1.0},
-	// 		{2.0}
-	// }));
 
 	Tensor<double> x(
 		Matrix<double>({
@@ -59,8 +42,12 @@ void test0(){
 
 	cout << "bias: \n";
 	cout << model->get_bias();
-}
 
+	auto pred = model->forward(x);
+	auto loss = loss_fn->forward(y, pred);
+
+	cout << "loss: " << loss;
+}
 
 void test1(){
 	// auto model = nn::models::Sequential<
@@ -106,52 +93,48 @@ void test1(){
 		loss.break_graph();
 	}
 
-	cout << "weights: \n";
-	cout << model->get_weight();
+	auto pred = model->forward(x);
+	auto loss = loss_fn->forward(y, pred);
+	cout << "loss: " << loss;
 
-	cout << "bias: \n";
-	cout << model->get_bias();
 }
 
 void test2(){
-	// auto model = nn::models::Sequential<
-	// 	double, 
-	// 	nn::layers::Linear<double, 2, 1>
-	// >();
 	auto model = nn::models::Sequential<
 		double,
-		nn::layers::Linear<double, 1, 1>,
+		nn::layers::Linear<double, 1, 2>,
 		nn::layers::ReLU<double>,
-		nn::layers::Linear<double, 1, 1>
+		nn::layers::Linear<double, 2, 1>
 	>();
 	auto loss_fn = std::make_shared<nn::losses::MSELoss<double>>();
 
 	Tensor<double> x(
 		Matrix<double>({
-			{-0.3743157032400103},
-			{2.2615914567952107},
-			{-1.817402626965077},
-			{-0.3368376833769455},
-			{0.427090363992074},
-			{1.1673731432849708},
-			{-0.541317756970594},
-			{-0.8586260784193804},
-			{-0.485021712883056},
-			{-0.5376472107543984}
+			{1.5792128155073915},
+			{0.6476885381006925},
+			{-0.4694743859349521},
+			{0.7674347291529088},
+			{0.5425600435859647},
+			{-0.23413695694918055},
+			{-0.13826430117118466},
+			{1.5230298564080254},
+			{0.4967141530112327},
+			{-0.23415337472333597},
 		}), nullptr, false
 	);
 	Tensor<double> y(Matrix<double>({
-			{-23.625950092615337},
-			{142.7464742345267},
-			{-114.71029238475006},
-			{-21.26042329480674},
-			{26.95696583758793},
-			{73.68191979118171},
-			{-34.166737328231626},
-			{-54.194512015829226},
-			{-30.613459930272658},
-			{-33.93506085576242}
+			{28.71403183926645},
+			{11.776594720057336},
+			{-8.536216482719636},
+			{13.953879446181778},
+			{9.86509621329011},
+			{-4.257194451925509},
+			{-2.5139902026363337},
+			{27.692485369682437},
+			{9.031503458257015},
+			{-4.257492968050251},
 	}), nullptr, false);
+
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model.forward(x);
@@ -164,9 +147,95 @@ void test2(){
 
 	auto pred = model.forward(x);
 	auto loss = loss_fn->forward(y, pred);
-	cout << "loss: \n" << loss;
+	cout << "loss: " << loss;
 }
 
+void test3(){
+	auto model = nn::models::Sequential<
+		double,
+		nn::layers::Linear<double, 1, 2>,
+		nn::layers::BatchNorm<double>,
+		nn::layers::ReLU<double>,
+		nn::layers::Linear<double, 2, 1>
+	>();
+	auto loss_fn = std::make_shared<nn::losses::MSELoss<double>>();
+
+	Tensor<double> x(
+		Matrix<double>({
+			{1.5792128155073915},
+			{0.6476885381006925},
+			{-0.4694743859349521},
+			{0.7674347291529088},
+			{0.5425600435859647},
+			{-0.23413695694918055},
+			{-0.13826430117118466},
+			{1.5230298564080254},
+			{0.4967141530112327},
+			{-0.23415337472333597},
+		}), nullptr, false
+	);
+	Tensor<double> y(Matrix<double>({
+			{28.71403183926645},
+			{11.776594720057336},
+			{-8.536216482719636},
+			{13.953879446181778},
+			{9.86509621329011},
+			{-4.257194451925509},
+			{-2.5139902026363337},
+			{27.692485369682437},
+			{9.031503458257015},
+			{-4.257492968050251},
+	}), nullptr, false);
+
+
+	for(int epoch = 0; epoch < 10000; ++epoch) {
+		auto pred = model.forward(x);
+		auto loss = loss_fn->forward(y, pred);
+		loss.backward();
+		loss.make_step(1e-3);
+		loss.zero_grad();
+		loss.break_graph();
+	}
+
+	auto pred = model.forward(x);
+	auto loss = loss_fn->forward(y, pred);
+	cout << "loss: " << loss;
+}
+
+void test4(){
+	auto model = nn::models::SingleLayer<double, nn::layers::Linear<double, 1, 1>>();
+	auto loss_fn = nn::models::SingleLayer<double, nn::losses::MSELoss<double>>();
+
+	Tensor<double> x(
+		Matrix<double>({
+			{0.0},
+			{1.0},
+			{2.0},
+			{3.0},
+			{4.0}
+		}), nullptr, false);
+	Tensor<double> y(Matrix<double>({
+			{0.0},
+			{2.0},
+			{4.0},
+			{6.0},
+			{8.0}
+		}), nullptr, false);
+
+	for(int epoch = 0; epoch < 10000; ++epoch) {
+		auto pred = model.forward(x);
+		auto loss = loss_fn.forward(y, pred);
+		loss.backward();
+		loss.make_step(1e-3);
+		loss.zero_grad();
+		loss.break_graph();
+	}
+
+	auto pred = model.forward(x);
+	auto loss = loss_fn.forward(y, pred);
+	
+	cout << "loss: " << loss;
+}
 
 int main() {
 	cout << "----------------test0----------------\n";
@@ -175,6 +244,11 @@ int main() {
 	test1();
 	cout << "----------------test2----------------\n";
 	test2();
+	cout << "----------------test3----------------\n";
+	test3();
+	cout << "----------------test4----------------\n";
+	test4();
+
 
 	return 0;
 }

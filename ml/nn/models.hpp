@@ -5,6 +5,39 @@
 #include <list>
 
 namespace ml::nn::models {
+	
+	template<typename Field, typename TLayer>
+	class SingleLayer{
+	private:
+		std::shared_ptr<TLayer> layer_;
+	public:
+		SingleLayer(): layer_(std::make_shared<TLayer>()){}
+
+		// non copyable
+		SingleLayer(const SingleLayer&) = delete;
+		SingleLayer& operator=(const SingleLayer&) = delete;
+
+		// non movable
+		SingleLayer& operator=(SingleLayer&&) = delete;
+		SingleLayer(SingleLayer&&) = delete;
+
+		~SingleLayer() = default;
+
+		std::shared_ptr<TLayer> getLayer() const {
+			return layer_;
+		}
+
+		Tensor<Field> forward(Tensor<Field>& tensor) {
+			return layer_->forward(tensor);
+			
+		}
+
+		Tensor<Field> forward(Tensor<Field>& left, Tensor<Field>& right) {
+			return layer_->forward(left, right);
+		}
+	};
+
+
 	template<typename Field, typename... Layers>
 	class Sequential{
 	private:
