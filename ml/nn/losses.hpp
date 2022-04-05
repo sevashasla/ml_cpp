@@ -90,14 +90,14 @@ class CrossEntropyLoss: public Layer<Field>{
 private:
 	Tensor<Field>* real_ptr;
 	Tensor<Field>* pred_ptr;
-	Matrix<Field> logits;
+	Matrix<Field> softmax;
 	using SharedBase = std::enable_shared_from_this<Layer<Field>>;
 
 public:
 
 	CrossEntropyLoss() = default;
 
-	Tensor<Field> forward(Tensor<Field>& real, Tensor<Field>& pred) override{
+	Tensor<Field> forward(Tensor<Field>& real, Tensor<Field>& pred /*logits*/) override{
 		if(real.size() != pred.size()){
 			throw BadShape("Wrong sizes of matrices. CrossEntropyLoss, forward");
 		}
@@ -109,7 +109,7 @@ public:
 		real_ptr = &real;
 		pred_ptr = &pred;
 
-		logits = Matrix<Field>(pred.size(), 0.0);
+		softmax = Matrix<Field>(pred.size(), 0.0);
 		for(size_t num = 0; num < pred.num_rows(); ++num){
 			Field _sum = 0.0;
 			for(size_t i = 0; i < Classes; ++i){
@@ -117,7 +117,7 @@ public:
 			}
 
 			for(size_t i = 0; i < Classes; ++i){
-				logits[num][i] = std::exp(pred[num][i]) / _sum;
+				softmax[num][i] = std::exp(pred[num][i]) / _sum;
 			}
 		}
 
@@ -125,14 +125,14 @@ public:
 
 		for(size_t num = 0; num < pred.num_rows(); ++num){
 			for(size_t i = 0; i < Classes; ++i){
-				result[0][0] -= std::log(logits[num][i]) * real[num][i];
+				result[0][0] -= std::log(softmax[num][i]) * real[num][i];
 			}
 		}
 		return result;
 	}
 
 	void backward_(const Matrix<Field>&){
-		Matrix<Field> grad_push(logits);
+		Matrix<Field> grad_push(softmax);
 		grad_push -= *real_ptr;
 		grad_push /= pred_ptr->num_rows();
 		pred_ptr->backward(grad_push);

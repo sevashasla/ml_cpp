@@ -143,6 +143,18 @@ public:
 		return *this;
 	}
 
+	Matrix& operator/=(const Matrix& other) {
+		if (size() != other.size()) {
+			throw BadShape("Wrong shapes of matrices. Matrix, /");
+		}
+		for(size_t i = 0; i < m_; ++i) {
+			for(size_t j = 0; j < n_; ++j) {
+				matrix[i][j] /= other[i][j];
+			}
+		}
+		return *this;
+	}
+
 	Matrix& operator*=(const Matrix<Field>& other){
 		//m x n * n x k
 		if (n_ != other.m_){
@@ -172,7 +184,15 @@ public:
 				matrix[i][j] += other[i][j];
 			}
 		}
+		return *this;
+	}
 
+	Matrix& operator+=(const Field& field){
+		for(size_t i = 0; i < m_; ++i){
+			for(size_t j = 0; j < n_; ++j){
+				matrix[i][j] += field;
+			}
+		}
 		return *this;
 	}
 
@@ -198,7 +218,17 @@ public:
 		}
 	}
 
-	Matrix<Field> transpose() const{
+	Matrix abs() const {
+		Matrix copy(*this);
+		for(size_t i = 0; i < m_; ++i){
+			for(size_t j = 0; j < n_; ++j){
+				copy[i][j] = std::abs(copy[i][j]);
+			}
+		}
+		return copy;
+	}
+
+	Matrix transpose() const{
 		Matrix<Field> transposed(n_, m_);
 		for(size_t i = 0; i < n_; ++i){
 			for(size_t j = 0; j < m_; ++j){
@@ -234,7 +264,7 @@ public:
 
 	template<typename FField>
 	explicit operator Matrix<FField>() const{
-		Matrix<FField> res(m_, n_, 0, nullptr);
+		Matrix<FField> res(m_, n_, 0);
 		for(size_t i = 0; i < m_; ++i){
 			for(size_t j = 0; j < n_; ++j){
 				res[i][j] = static_cast<FField>(matrix[i][j]);
@@ -252,6 +282,11 @@ Matrix<Field> operator+(Matrix<Field> left, const Matrix<Field>& right){
 }
 
 template<typename Field>
+Matrix<Field> operator+(Matrix<Field> left, const Field& field){
+	return left += field;
+}
+
+template<typename Field>
 Matrix<Field> operator*(Matrix<Field> left, const Field& field){
 	return left *= field;
 }
@@ -264,6 +299,11 @@ Matrix<Field> operator-(Matrix<Field> left, const Matrix<Field>& right){
 template<typename Field>
 Matrix<Field> operator*(Matrix<Field> left, const Matrix<Field>& right){
 	return left *= right;
+}
+
+template<typename Field>
+Matrix<Field> operator/(Matrix<Field> left, const Matrix<Field>& right){
+	return left /= right;
 }
 
 template<typename Field>
