@@ -10,6 +10,7 @@ namespace ml::nn::models {
 	class SingleLayer{
 	private:
 		std::shared_ptr<TLayer> layer_;
+
 	public:
 		SingleLayer(): layer_(std::make_shared<TLayer>()){}
 

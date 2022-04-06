@@ -5,6 +5,7 @@
 #include "nn/metrics.hpp"
 #include "nn/preprocessing.hpp"
 #include "nn/postprocessing.hpp"
+#include "tqdm_like/tqdm_like.hpp"
 
 #include <iostream>
 
@@ -203,8 +204,8 @@ void test3(){
 }
 
 void test4(){
-	auto model = nn::models::SingleLayer<double, nn::layers::Linear<double, 1, 1>>();
-	auto loss_fn = nn::models::SingleLayer<double, nn::losses::MSELoss<double>>();
+	nn::models::SingleLayer<double, nn::layers::Linear<double, 1, 1>> model;
+	nn::models::SingleLayer<double, nn::losses::MSELoss<double>> loss_fn;
 
 	Tensor<double> x(
 		Matrix<double>({
@@ -273,8 +274,8 @@ void test5(){
 		nullptr, 
 		false);
 
-	auto model = nn::models::SingleLayer<double, nn::layers::Linear<double, 1, 2>>();
-	auto loss_fn = nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, 2>>();
+	nn::models::SingleLayer<double, nn::layers::Linear<double, 1, 2>> model;
+	nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, 2>> loss_fn;
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model.forward(x);
@@ -296,7 +297,6 @@ void test5(){
 }
 
 void test6(){
-	// stupid classification
 	Tensor<double> x(
 		Matrix<double>({
 		{1.5792128155073915},
@@ -338,7 +338,7 @@ void test6(){
 		nn::layers::Linear<double, 3, 2>
 	>();
 
-	auto loss_fn = nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, 2>>();
+	nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, 2>> loss_fn;
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model.forward(x);
@@ -480,14 +480,14 @@ void test7(){
 	>();
 	auto loss_fn = std::make_shared<nn::losses::MSELoss<double>>();
 
-	for(int epoch = 0; epoch < 10000; ++epoch) {
+	tqdm_like::tqdm_like(0, 10000, 1, [&](){
 		auto pred = model.forward(x);
 		auto loss = loss_fn->forward(y, pred);
 		loss.backward();
 		loss.make_step(1e-3);
 		loss.zero_grad();
 		loss.break_graph();
-	}
+	});
 
 	auto pred = model.forward(x);
 	auto loss = loss_fn->forward(y, pred);
@@ -622,16 +622,363 @@ void test8(){
 		nn::layers::Linear<double, 8, NUM_CLASSES>
 	>();
 
-	auto loss_fn = nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, NUM_CLASSES>>();
+	nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, NUM_CLASSES>> loss_fn;
 
-	for(int epoch = 0; epoch < 10000; ++epoch) {
+	tqdm_like::tqdm_like(0, 10000, 1, [&](){
 		auto pred = model.forward(x);
 		auto loss = loss_fn.forward(y, pred);
 		loss.backward();
 		loss.make_step(1e-3);
 		loss.zero_grad();
-		loss.break_graph();
-	}
+		loss.break_graph();		
+	});
+
+	auto pred = model.forward(x);
+	auto loss = loss_fn.forward(y, pred);
+	auto pred_classes = postprocessing::predict<NUM_CLASSES>(pred);
+
+	cout << "loss: " << loss;
+	cout << "accuracy: " << metrics::accuracy<double>(y_fresh, pred_classes);
+	cout << "probabilities:\n";
+	cout << postprocessing::predictProba<NUM_CLASSES, double>(pred);
+}
+
+
+// test on dataset_iris
+void test9(){
+	constexpr size_t NUM_CLASSES = 3;
+
+	Tensor<double> x(
+		Matrix<double>({
+		{5.1, 3.5, 1.4, 0.2},
+		{4.9, 3.0, 1.4, 0.2},
+		{4.7, 3.2, 1.3, 0.2},
+		{4.6, 3.1, 1.5, 0.2},
+		{5.0, 3.6, 1.4, 0.2},
+		{5.4, 3.9, 1.7, 0.4},
+		{4.6, 3.4, 1.4, 0.3},
+		{5.0, 3.4, 1.5, 0.2},
+		{4.4, 2.9, 1.4, 0.2},
+		{4.9, 3.1, 1.5, 0.1},
+		{5.4, 3.7, 1.5, 0.2},
+		{4.8, 3.4, 1.6, 0.2},
+		{4.8, 3.0, 1.4, 0.1},
+		{4.3, 3.0, 1.1, 0.1},
+		{5.8, 4.0, 1.2, 0.2},
+		{5.7, 4.4, 1.5, 0.4},
+		{5.4, 3.9, 1.3, 0.4},
+		{5.1, 3.5, 1.4, 0.3},
+		{5.7, 3.8, 1.7, 0.3},
+		{5.1, 3.8, 1.5, 0.3},
+		{5.4, 3.4, 1.7, 0.2},
+		{5.1, 3.7, 1.5, 0.4},
+		{4.6, 3.6, 1.0, 0.2},
+		{5.1, 3.3, 1.7, 0.5},
+		{4.8, 3.4, 1.9, 0.2},
+		{5.0, 3.0, 1.6, 0.2},
+		{5.0, 3.4, 1.6, 0.4},
+		{5.2, 3.5, 1.5, 0.2},
+		{5.2, 3.4, 1.4, 0.2},
+		{4.7, 3.2, 1.6, 0.2},
+		{4.8, 3.1, 1.6, 0.2},
+		{5.4, 3.4, 1.5, 0.4},
+		{5.2, 4.1, 1.5, 0.1},
+		{5.5, 4.2, 1.4, 0.2},
+		{4.9, 3.1, 1.5, 0.2},
+		{5.0, 3.2, 1.2, 0.2},
+		{5.5, 3.5, 1.3, 0.2},
+		{4.9, 3.6, 1.4, 0.1},
+		{4.4, 3.0, 1.3, 0.2},
+		{5.1, 3.4, 1.5, 0.2},
+		{5.0, 3.5, 1.3, 0.3},
+		{4.5, 2.3, 1.3, 0.3},
+		{4.4, 3.2, 1.3, 0.2},
+		{5.0, 3.5, 1.6, 0.6},
+		{5.1, 3.8, 1.9, 0.4},
+		{4.8, 3.0, 1.4, 0.3},
+		{5.1, 3.8, 1.6, 0.2},
+		{4.6, 3.2, 1.4, 0.2},
+		{5.3, 3.7, 1.5, 0.2},
+		{5.0, 3.3, 1.4, 0.2},
+		{7.0, 3.2, 4.7, 1.4},
+		{6.4, 3.2, 4.5, 1.5},
+		{6.9, 3.1, 4.9, 1.5},
+		{5.5, 2.3, 4.0, 1.3},
+		{6.5, 2.8, 4.6, 1.5},
+		{5.7, 2.8, 4.5, 1.3},
+		{6.3, 3.3, 4.7, 1.6},
+		{4.9, 2.4, 3.3, 1.0},
+		{6.6, 2.9, 4.6, 1.3},
+		{5.2, 2.7, 3.9, 1.4},
+		{5.0, 2.0, 3.5, 1.0},
+		{5.9, 3.0, 4.2, 1.5},
+		{6.0, 2.2, 4.0, 1.0},
+		{6.1, 2.9, 4.7, 1.4},
+		{5.6, 2.9, 3.6, 1.3},
+		{6.7, 3.1, 4.4, 1.4},
+		{5.6, 3.0, 4.5, 1.5},
+		{5.8, 2.7, 4.1, 1.0},
+		{6.2, 2.2, 4.5, 1.5},
+		{5.6, 2.5, 3.9, 1.1},
+		{5.9, 3.2, 4.8, 1.8},
+		{6.1, 2.8, 4.0, 1.3},
+		{6.3, 2.5, 4.9, 1.5},
+		{6.1, 2.8, 4.7, 1.2},
+		{6.4, 2.9, 4.3, 1.3},
+		{6.6, 3.0, 4.4, 1.4},
+		{6.8, 2.8, 4.8, 1.4},
+		{6.7, 3.0, 5.0, 1.7},
+		{6.0, 2.9, 4.5, 1.5},
+		{5.7, 2.6, 3.5, 1.0},
+		{5.5, 2.4, 3.8, 1.1},
+		{5.5, 2.4, 3.7, 1.0},
+		{5.8, 2.7, 3.9, 1.2},
+		{6.0, 2.7, 5.1, 1.6},
+		{5.4, 3.0, 4.5, 1.5},
+		{6.0, 3.4, 4.5, 1.6},
+		{6.7, 3.1, 4.7, 1.5},
+		{6.3, 2.3, 4.4, 1.3},
+		{5.6, 3.0, 4.1, 1.3},
+		{5.5, 2.5, 4.0, 1.3},
+		{5.5, 2.6, 4.4, 1.2},
+		{6.1, 3.0, 4.6, 1.4},
+		{5.8, 2.6, 4.0, 1.2},
+		{5.0, 2.3, 3.3, 1.0},
+		{5.6, 2.7, 4.2, 1.3},
+		{5.7, 3.0, 4.2, 1.2},
+		{5.7, 2.9, 4.2, 1.3},
+		{6.2, 2.9, 4.3, 1.3},
+		{5.1, 2.5, 3.0, 1.1},
+		{5.7, 2.8, 4.1, 1.3},
+		{6.3, 3.3, 6.0, 2.5},
+		{5.8, 2.7, 5.1, 1.9},
+		{7.1, 3.0, 5.9, 2.1},
+		{6.3, 2.9, 5.6, 1.8},
+		{6.5, 3.0, 5.8, 2.2},
+		{7.6, 3.0, 6.6, 2.1},
+		{4.9, 2.5, 4.5, 1.7},
+		{7.3, 2.9, 6.3, 1.8},
+		{6.7, 2.5, 5.8, 1.8},
+		{7.2, 3.6, 6.1, 2.5},
+		{6.5, 3.2, 5.1, 2.0},
+		{6.4, 2.7, 5.3, 1.9},
+		{6.8, 3.0, 5.5, 2.1},
+		{5.7, 2.5, 5.0, 2.0},
+		{5.8, 2.8, 5.1, 2.4},
+		{6.4, 3.2, 5.3, 2.3},
+		{6.5, 3.0, 5.5, 1.8},
+		{7.7, 3.8, 6.7, 2.2},
+		{7.7, 2.6, 6.9, 2.3},
+		{6.0, 2.2, 5.0, 1.5},
+		{6.9, 3.2, 5.7, 2.3},
+		{5.6, 2.8, 4.9, 2.0},
+		{7.7, 2.8, 6.7, 2.0},
+		{6.3, 2.7, 4.9, 1.8},
+		{6.7, 3.3, 5.7, 2.1},
+		{7.2, 3.2, 6.0, 1.8},
+		{6.2, 2.8, 4.8, 1.8},
+		{6.1, 3.0, 4.9, 1.8},
+		{6.4, 2.8, 5.6, 2.1},
+		{7.2, 3.0, 5.8, 1.6},
+		{7.4, 2.8, 6.1, 1.9},
+		{7.9, 3.8, 6.4, 2.0},
+		{6.4, 2.8, 5.6, 2.2},
+		{6.3, 2.8, 5.1, 1.5},
+		{6.1, 2.6, 5.6, 1.4},
+		{7.7, 3.0, 6.1, 2.3},
+		{6.3, 3.4, 5.6, 2.4},
+		{6.4, 3.1, 5.5, 1.8},
+		{6.0, 3.0, 4.8, 1.8},
+		{6.9, 3.1, 5.4, 2.1},
+		{6.7, 3.1, 5.6, 2.4},
+		{6.9, 3.1, 5.1, 2.3},
+		{5.8, 2.7, 5.1, 1.9},
+		{6.8, 3.2, 5.9, 2.3},
+		{6.7, 3.3, 5.7, 2.5},
+		{6.7, 3.0, 5.2, 2.3},
+		{6.3, 2.5, 5.0, 1.9},
+		{6.5, 3.0, 5.2, 2.0},
+		{6.2, 3.4, 5.4, 2.3},
+		{5.9, 3.0, 5.1, 1.8}
+	}), nullptr, false);
+
+	Tensor<size_t> y_fresh(
+		Matrix<size_t>({
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{0},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{1},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2},
+			{2}
+	}), nullptr, false);
+
+	Tensor<double> y(
+		static_cast<Matrix<double>>(preprocessing::OneHot<NUM_CLASSES>(y_fresh)), 
+		nullptr, 
+		false);
+
+	auto model = nn::models::Sequential<
+		double,
+		nn::layers::Linear<double, 4, 8>,
+		nn::layers::BatchNorm<double>,
+		nn::layers::ReLU<double>,
+		nn::layers::Linear<double, 8, NUM_CLASSES>
+	>();
+
+	nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, NUM_CLASSES>> loss_fn;
+
+	tqdm_like::tqdm_like(0, 10000, 1, [&](){
+		auto pred = model.forward(x);
+		auto loss = loss_fn.forward(y, pred);
+		loss.backward();
+		loss.make_step(1e-3);
+		loss.zero_grad();
+		loss.break_graph();		
+	});
 
 	auto pred = model.forward(x);
 	auto loss = loss_fn.forward(y, pred);
@@ -661,6 +1008,8 @@ int main() {
 	cout << "----------------test7----------------\n";
 	test7();
 	cout << "----------------test8----------------\n";
+	test8();
+	cout << "----------------test9----------------\n";
 	test8();
 
 	return 0;

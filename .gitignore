@@ -66,6 +66,7 @@
 *.la
 *.a
 *.lib
+.vscode
 
 # Executables
 *.exe
@@ -73,6 +74,9 @@
 *.app
 
 ### CMake ###
+bin
+lib
+build
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
