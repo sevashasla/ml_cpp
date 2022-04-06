@@ -7,7 +7,6 @@
 #include <memory>
 #include <vector>
 
-using std::cout;
 struct BadShape: public std::exception{
 	const char* ptr=nullptr;
 	BadShape(const char* ptr): ptr(ptr){}

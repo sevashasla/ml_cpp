@@ -10,7 +10,7 @@
 #include <iostream>
 
 using namespace ml;
-
+using std::cout;
 
 void test0(){
 	auto model = std::make_shared<nn::layers::Linear<double, 1, 1>>();
