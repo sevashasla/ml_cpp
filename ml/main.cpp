@@ -54,10 +54,6 @@ void test0(){
 }
 
 void test1(){
-	// auto model = nn::models::Sequential<
-	// 	double, 
-	// 	nn::layers::Linear<double, 2, 1>
-	// >();
 	auto model = std::make_shared<nn::layers::Linear<double, 1, 1>>();
 	auto loss_fn = std::make_shared<nn::losses::MSELoss<double>>();
 

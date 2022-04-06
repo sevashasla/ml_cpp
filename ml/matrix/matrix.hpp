@@ -156,6 +156,7 @@ public:
 	}
 
 	Matrix& operator*=(const Matrix<Field>& other){
+		auto transposed = other.transpose();
 		//m x n * n x k
 		if (n_ != other.m_){
 			throw BadShape("Wrong shapes of matrices. Matrix, *");
@@ -165,7 +166,7 @@ public:
 		for(size_t i = 0; i < m_; ++i){
 			for(size_t j = 0; j < other.n_; ++j){
 				for(size_t k = 0; k < n_; ++k){
-					result[i][j] += matrix[i][k] * other[k][j];
+					result[i][j] += matrix[i][k] * transposed[j][k];
 				}
 			}
 		}
