@@ -202,10 +202,10 @@ tqdm_like:
 
 
 ## TODO:
+- add possibility to read data via file. Or use appropriate library
 - add BatchCount
 - requires_grad field
 - add optimizer
 - add MAE
-- add initialization
 - softmax Layer
 - add gtest
