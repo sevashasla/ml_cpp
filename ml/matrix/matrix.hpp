@@ -1,13 +1,14 @@
 #pragma once
 
-#include <iostream>
-#include <type_traits>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
-struct BadShape: public std::exception{
+using std::cout;
+struct BadShape: public std::exception {
 	const char* ptr=nullptr;
 	BadShape(const char* ptr): ptr(ptr){}
 

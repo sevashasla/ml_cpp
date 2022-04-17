@@ -1,16 +1,15 @@
-#include "tensor/tensor.hpp"
-#include "nn/models.hpp"
-#include "nn/layers.hpp"
-#include "nn/losses.hpp"
-#include "nn/metrics.hpp"
-#include "nn/preprocessing.hpp"
-#include "nn/postprocessing.hpp"
+#include "ml/tensor/tensor.hpp"
+#include "ml/nn/models.hpp"
+#include "ml/nn/layers.hpp"
+#include "ml/nn/losses.hpp"
+#include "ml/nn/metrics.hpp"
+#include "ml/nn/preprocessing.hpp"
+#include "ml/nn/postprocessing.hpp"
 #include "tqdm_like/tqdm_like.hpp"
 
 #include <iostream>
 
 using namespace ml;
-using std::cout;
 
 void test0(){
 	auto model = std::make_shared<nn::layers::Linear<double, 1, 1>>();
@@ -23,14 +22,17 @@ void test0(){
 			{2.0},
 			{3.0},
 			{4.0}
-		}), nullptr, false);
+		}));
+	x.detach();
+
 	Tensor<double> y(Matrix<double>({
 			{0.0},
 			{2.0},
 			{4.0},
 			{6.0},
 			{8.0}
-		}), nullptr, false);
+		}));
+	y.detach();
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model->forward(x);
@@ -70,8 +72,9 @@ void test1(){
 			{-0.8586260784193804},
 			{-0.485021712883056},
 			{-0.5376472107543984}
-		}), nullptr, false
-	);
+		}));
+	x.detach();
+
 	Tensor<double> y(Matrix<double>({
 			{-23.625950092615337},
 			{142.7464742345267},
@@ -83,7 +86,8 @@ void test1(){
 			{-54.194512015829226},
 			{-30.613459930272658},
 			{-33.93506085576242}
-	}), nullptr, false);
+	}));
+	y.detach();
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model->forward(x);
@@ -121,8 +125,9 @@ void test2(){
 			{1.5230298564080254},
 			{0.4967141530112327},
 			{-0.23415337472333597},
-		}), nullptr, false
-	);
+		}));
+	x.detach();
+
 	Tensor<double> y(Matrix<double>({
 			{28.71403183926645},
 			{11.776594720057336},
@@ -134,7 +139,8 @@ void test2(){
 			{27.692485369682437},
 			{9.031503458257015},
 			{-4.257492968050251},
-	}), nullptr, false);
+	}));
+	y.detach();
 
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
@@ -173,8 +179,10 @@ void test3(){
 			{1.5230298564080254},
 			{0.4967141530112327},
 			{-0.23415337472333597},
-		}), nullptr, false
+		})
 	);
+	x.detach();
+
 	Tensor<double> y(Matrix<double>({
 			{28.71403183926645},
 			{11.776594720057336},
@@ -186,8 +194,8 @@ void test3(){
 			{27.692485369682437},
 			{9.031503458257015},
 			{-4.257492968050251},
-	}), nullptr, false);
-
+	}));
+	y.detach();
 
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model.forward(x);
@@ -214,15 +222,16 @@ void test4(){
 			{2.0},
 			{3.0},
 			{4.0}
-		}), nullptr, false);
+		}));
+	x.detach();
 	Tensor<double> y(Matrix<double>({
 			{0.0},
 			{2.0},
 			{4.0},
 			{6.0},
 			{8.0}
-		}), nullptr, false);
-
+		}));
+	y.detach();
 	for(int epoch = 0; epoch < 10000; ++epoch) {
 		auto pred = model.forward(x);
 		auto loss = loss_fn.forward(y, pred);
@@ -253,7 +262,8 @@ void test5(){
 		{1.5230298564080254},
 		{0.4967141530112327},
 		{-0.23415337472333597}	
-	}), nullptr, false);
+	}));
+	x.detach();
 
 	Tensor<size_t> y_fresh(
 		Matrix<size_t>({
@@ -267,12 +277,12 @@ void test5(){
 			{1},
 			{1},
 			{0}	
-	}), nullptr, false);
+	}));
+	y_fresh.detach();
 
 	Tensor<double> y(
-		static_cast<Matrix<double>>(preprocessing::OneHot<2>(y_fresh)), 
-		nullptr, 
-		false);
+		static_cast<Matrix<double>>(preprocessing::OneHot<2>(y_fresh)));
+	y.detach();
 
 	nn::models::SingleLayer<double, nn::layers::Linear<double, 1, 2>> model;
 	nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, 2>> loss_fn;
@@ -309,7 +319,8 @@ void test6(){
 		{1.5230298564080254},
 		{0.4967141530112327},
 		{-0.23415337472333597}	
-	}), nullptr, false);
+	}));
+	x.detach();
 
 	Tensor<size_t> y_fresh(
 		Matrix<size_t>({
@@ -323,12 +334,12 @@ void test6(){
 			{1},
 			{1},
 			{0}	
-	}), nullptr, false);
+	}));
+	y_fresh.detach();
 
 	Tensor<double> y(
-		static_cast<Matrix<double>>(preprocessing::OneHot<2>(y_fresh)), 
-		nullptr, 
-		false);
+		static_cast<Matrix<double>>(preprocessing::OneHot<2>(y_fresh)));
+	y.detach();
 
 	auto model = nn::models::Sequential<
 		double,
@@ -412,8 +423,8 @@ void test7(){
 			{0.7519330326867741, 1.1428228145150205, -1.168678037619532, 0.30154734233361247, -0.03471176970524331},
 			{0.6565536086338297, -1.1913034972026486, 0.4738329209117875, -0.7143514180263678, 1.8657745111447566},
 			{0.173180925851182, -1.245738778711988, 0.21409374413020396, -0.4465149520670211, 0.8563987943234723}
-		}), nullptr, false
-	);
+		}));
+	x.detach();
 
 	Tensor<double> y(Matrix<double>({
 			{-26.58819466279737},
@@ -466,8 +477,8 @@ void test7(){
 			{-92.47394207815948},
 			{50.52563749746511},
 			{13.071061994481864}
-	}), nullptr, false);
-
+	}));
+	y.detach();
 	auto model = nn::models::Sequential<
 		double,
 		nn::layers::Linear<double, 5, 8>,
@@ -550,7 +561,8 @@ void test8(){
 		{-1.2459648277325193, -1.8759571009526887, -1.326886840090686, -1.6652220601284995, -2.109285836819546},
 		{1.5079937471713407, -1.0160781618894863, -1.2305787008873077, -1.2447315277659257, 1.0076848649987324},
 		{-3.2514678769489262, 1.295690043807694, 1.4402100931584028, 2.840143946922941, -1.5589741558969035}
-	}), nullptr, false);
+	}));
+	x.detach();
 
 	Tensor<size_t> y_fresh(
 		Matrix<size_t>({
@@ -604,12 +616,12 @@ void test8(){
 			{2},
 			{2},
 			{1}
-	}), nullptr, false);
+	}));
+	y_fresh.detach();
 
 	Tensor<double> y(
-		static_cast<Matrix<double>>(preprocessing::OneHot<NUM_CLASSES>(y_fresh)), 
-		nullptr, 
-		false);
+		static_cast<Matrix<double>>(preprocessing::OneHot<NUM_CLASSES>(y_fresh)));
+	y.detach();
 
 	auto model = nn::models::Sequential<
 		double,
@@ -800,7 +812,8 @@ void test9(){
 		{6.5, 3.0, 5.2, 2.0},
 		{6.2, 3.4, 5.4, 2.3},
 		{5.9, 3.0, 5.1, 1.8}
-	}), nullptr, false);
+	}));
+	x.detach();
 
 	Tensor<size_t> y_fresh(
 		Matrix<size_t>({
@@ -954,19 +967,22 @@ void test9(){
 			{2},
 			{2},
 			{2}
-	}), nullptr, false);
+	}));
+	y_fresh.detach();
 
 	Tensor<double> y(
-		static_cast<Matrix<double>>(preprocessing::OneHot<NUM_CLASSES>(y_fresh)), 
-		nullptr, 
-		false);
+		static_cast<Matrix<double>>(preprocessing::OneHot<NUM_CLASSES>(y_fresh)));
+	y.detach();
 
 	auto model = nn::models::Sequential<
 		double,
-		nn::layers::Linear<double, 4, 8>,
+		nn::layers::Linear<double, 4, 16>,
 		nn::layers::BatchNorm<double>,
 		nn::layers::ReLU<double>,
-		nn::layers::Linear<double, 8, NUM_CLASSES>
+		nn::layers::Linear<double, 16, 16>,
+		nn::layers::BatchNorm<double>,
+		nn::layers::ReLU<double>,
+		nn::layers::Linear<double, 16, NUM_CLASSES>
 	>();
 
 	nn::models::SingleLayer<double, nn::losses::CrossEntropyLoss<double, NUM_CLASSES>> loss_fn;
@@ -1010,7 +1026,7 @@ int main() {
 	cout << "----------------test8----------------\n";
 	test8();
 	cout << "----------------test9----------------\n";
-	test8();
+	test9();
 
 	return 0;
 }

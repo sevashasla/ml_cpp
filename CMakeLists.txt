@@ -13,6 +13,5 @@ message(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tqdm_like/")
 
-target_include_directories(main INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nn/")
-target_include_directories(main INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/matrix/")
+target_include_directories(main INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/ml/")
 target_link_libraries(main tqdm_like)

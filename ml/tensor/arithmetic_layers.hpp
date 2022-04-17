@@ -3,7 +3,6 @@
 #include "basic_layer.hpp"
 
 namespace ml {
-
 template<typename Field>
 class Multiplier: public Layer<Field>{
 

@@ -38,22 +38,22 @@ public:
     using Matrix<Field>::transpose;
 
     Tensor() = default;
-    Tensor(size_t m, size_t n, std::shared_ptr<Layer<Field>> from=nullptr, bool requires_grad=true): 
+    Tensor(size_t m, size_t n, std::shared_ptr<Layer<Field>> from=nullptr): 
         Matrix<Field>(m, n), 
         from_(std::move(from)),
         grad(m, n, 0),
         requires_grad(requires_grad) {}
 
-    Tensor(std::pair<size_t, size_t> size, std::shared_ptr<Layer<Field>> from=nullptr, bool requires_grad=true): 
+    Tensor(std::pair<size_t, size_t> size, std::shared_ptr<Layer<Field>> from=nullptr): 
         Tensor(size.first, size.second, std::move(from), requires_grad) {}
 
-    Tensor(const Matrix<Field>& other, std::shared_ptr<Layer<Field>> ptr=nullptr, bool requires_grad=true): 
+    Tensor(const Matrix<Field>& other, std::shared_ptr<Layer<Field>> ptr=nullptr): 
         Matrix<Field>(other), 
         from_(ptr), 
         grad(m_, n_, 0),
         requires_grad(requires_grad){}
 
-    Tensor(Matrix<Field>&& other, std::shared_ptr<Layer<Field>> ptr=nullptr, bool requires_grad=true):
+    Tensor(Matrix<Field>&& other, std::shared_ptr<Layer<Field>> ptr=nullptr):
         Matrix<Field>(std::move(other)), 
         from_(std::move(ptr)), 
         grad(m_, n_, 0),
@@ -102,6 +102,10 @@ public:
             throw BadShape("m > 1 or n > 1. Tensor value");
         }
         return matrix[0][0];
+    }
+
+    void detach() {
+        requires_grad = false;
     }
 
     // TODO: add optimizer

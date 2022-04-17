@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../matrix/matrix.hpp"
+#include "../matrix/matrix.h"
 
 namespace ml::linear_models{
 

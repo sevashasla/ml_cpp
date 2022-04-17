@@ -2,6 +2,7 @@
 
 #include "../tensor/tensor.hpp"
 #include "../tensor/basic_layer.hpp"
+
 #include <list>
 
 namespace ml::nn::models {
